@@ -1,0 +1,33 @@
+{
+  "baseUrl": "https://ezlab.im",
+  "startPaths": ["/ko", "/en", "/jp", "/tw"],
+  "crawl": {
+    "maxPages": 40,
+    "sameOriginOnly": true,
+    "includeSubdomains": false,
+    "ignorePatterns": ["\\.pdf$", "\\.zip$", "mailto:", "tel:", "^javascript:"]
+  },
+  "checks": {
+    "links": true,
+    "images": true,
+    "api": true,
+    "console": true,
+    "performance": true
+  },
+  "thresholds": {
+    "pageLoadMs": 8000,
+    "apiLatencyMs": 3000,
+    "maxConsoleErrors": 0
+  },
+  "navigation": {
+    "timeoutMs": 30000,
+    "waitUntil": "load",
+    "settleMs": 4000,
+    "userAgent": "ezlab-healthcheck-bot/1.0 (+https://ezlab.im)"
+  },
+  "resourceCheck": {
+    "concurrency": 6,
+    "requestTimeoutMs": 15000,
+    "retries": 2
+  }
+}

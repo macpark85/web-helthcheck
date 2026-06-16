@@ -1,0 +1,17 @@
+{
+  "name": "web-healthcheck",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Playwright 기반 웹 페이지 헬스체크 자동화 (링크/이미지 전수조사 + API 검수 + HTML 리포트)",
+  "type": "module",
+  "scripts": {
+    "check": "node src/healthcheck.js",
+    "report": "node src/report.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "playwright": "^1.49.0"
+  }
+}

@@ -1,0 +1,65 @@
+name: web-healthcheck
+
+on:
+  schedule:
+    # 매 2시간마다 = 하루 12회 (요구사항 "최소 10회/일" 충족)
+    # cron은 UTC 기준. 분(0)은 GitHub 부하에 따라 다소 지연될 수 있음.
+    - cron: "0 */2 * * *"
+  workflow_dispatch:
+    inputs:
+      base_url:
+        description: "대상 URL 오버라이드 (비우면 config 사용)"
+        required: false
+        default: ""
+
+permissions:
+  contents: write # gh-pages 배포용
+
+concurrency:
+  group: healthcheck
+  cancel-in-progress: false
+
+jobs:
+  healthcheck:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci || npm install
+
+      - name: Install Playwright browser (chromium)
+        run: npx playwright install --with-deps chromium
+
+      - name: Run healthcheck
+        env:
+          HC_BASE_URL: ${{ github.event.inputs.base_url }}
+          # 이상 감지 시 워크플로우를 실패(빨강) 처리하려면 1로 변경
+          HC_FAIL_ON_ERROR: "0"
+        run: npm run check
+
+      - name: Upload report artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: healthcheck-report-${{ github.run_id }}
+          path: reports/
+          retention-days: 30
+
+      # ---- (선택) GitHub Pages로 최신 리포트 게시 ----
+      # 저장소 Settings → Pages → Source를 "gh-pages" 브랜치로 설정하면
+      # https://<user>.github.io/<repo>/latest.html 에서 항상 최신 리포트 확인 가능.
+      - name: Publish latest report to GitHub Pages
+        if: always() && github.ref == 'refs/heads/main'
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./reports
+          keep_files: true # 과거 타임스탬프 리포트 누적 보존
+          commit_message: "healthcheck report ${{ github.run_id }}"

@@ -1,0 +1,9 @@
+node_modules/
+playwright-report/
+test-results/
+*.log
+.DS_Store
+
+# 로컬 실행 결과는 커밋하지 않음 (CI 아티팩트/Pages로 관리)
+reports/data/
+reports/*.html
