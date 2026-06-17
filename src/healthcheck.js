@@ -178,6 +178,13 @@ async function run() {
   const ignoreRe = (cfg.crawl.ignorePatterns || []).map((p) => new RegExp(p, "i"));
   const shouldIgnore = (u) => ignoreRe.some((re) => re.test(u));
 
+  // 실패 페이지 스크린샷 설정 (config.screenshots, 없으면 기본값)
+  const shotCfg = {
+    enabled: cfg.screenshots?.enabled !== false,
+    quality: cfg.screenshots?.quality ?? 55,
+  };
+  let shotBudget = cfg.screenshots?.max ?? 12; // 리포트 비대화 방지용 상한
+
   while (queue.length && pages.length < cfg.crawl.maxPages) {
     const pageUrl = queue.shift();
     const page = await context.newPage();
@@ -336,6 +343,19 @@ async function run() {
       failedRequests.length === 0 && // 자사 리소스 실패가 없어야 함
       (cfg.checks.console ? consoleErrors.length <= cfg.thresholds.maxConsoleErrors : true);
 
+    // 실패 페이지만 스크린샷 캡처(개발자가 화면 상태를 바로 확인). 정상이면 안 찍어 용량 절약.
+    // 한 번에 너무 많이 붙는 걸 막기 위해 shotBudget 만큼만, 화면(뷰포트)만 JPEG로 찍는다.
+    let screenshot = null;
+    if (!pageOk && shotCfg.enabled && shotBudget > 0) {
+      try {
+        const buf = await page.screenshot({ type: "jpeg", quality: shotCfg.quality, fullPage: false });
+        screenshot = "data:image/jpeg;base64," + buf.toString("base64");
+        shotBudget--;
+      } catch {
+        /* 스크린샷 실패(페이지 닫힘 등)는 무시 */
+      }
+    }
+
     pages.push({
       url: pageUrl,
       finalUrl,
@@ -349,6 +369,7 @@ async function run() {
       failedRequests,
       thirdPartyFailures: thirdPartyFailures.length,
       ok: pageOk,
+      screenshot,
     });
 
     console.log(
@@ -468,9 +489,10 @@ async function run() {
   writeFileSync(jsonPath, JSON.stringify(result, null, 2));
 
   const htmlPath = join(ROOT, "reports", `healthcheck_${runId}.html`);
-  writeFileSync(htmlPath, renderHtmlReport(result));
+  const html = renderHtmlReport(result, { dataDir }); // dataDir → 과거 실행과 비교해 이슈 분류
+  writeFileSync(htmlPath, html);
   // latest 바로가기
-  writeFileSync(join(ROOT, "reports", "latest.html"), renderHtmlReport(result));
+  writeFileSync(join(ROOT, "reports", "latest.html"), html);
 
   console.log("\n===== 헬스체크 요약 =====");
   console.log(`상태: ${overallHealthy ? "✅ 정상" : "❌ 이상 감지"}`);
