@@ -1,9 +1,20 @@
-// 헬스체크 결과(JSON) → 한글 HTML 리포트 렌더러
+// 헬스체크 결과(JSON) → 한글 HTML 리포트 렌더러 (QA → 개발자 인수용)
+// 설계 목표
+//  1) 한눈에: 상단에서 정상/이상·문제 건수를 즉시 판정
+//  2) 개발자 공유: 이슈마다 "원인 전문"(콘솔 메시지·실패 URL·발견 페이지)을 노출하고,
+//                  버튼 한 번으로 슬랙/지라에 붙여넣을 텍스트를 클립보드에 복사
+//  3) 가벼움: 정상 링크/이미지/API는 개수+소수 샘플만 — 문제만 상세히
+//
 // healthcheck.js에서 직접 import 하거나, `node src/report.js <json경로>`로 단독 실행 가능.
 
 import { readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join, basename } from "node:path";
+import { deriveIssues } from "./issues.js";
+import { annotateHistory } from "./history.js";
+
+// 정상 항목을 상세 표에 몇 개까지 보여줄지 (용량/가독성 절감) — 문제 항목은 항상 전부 표시
+const SAMPLE_OK = 20;
 
 function esc(s) {
   return String(s ?? "")
@@ -56,69 +67,87 @@ function foundOnCell(list, n = 45) {
   return first + (arr.length > 1 ? `<span class="muted"> 외 ${arr.length - 1}</span>` : "");
 }
 
-export function renderHtmlReport(r) {
+// 발견 위치를 평문으로 (공유 텍스트용)
+function foundOnText(list) {
+  const arr = list || [];
+  if (!arr.length) return "";
+  return arr[0] + (arr.length > 1 ? ` 외 ${arr.length - 1}` : "");
+}
+
+export function renderHtmlReport(r, opts = {}) {
   const m = r.meta;
   const s = r.summary;
   const apiThreshold = r.config?.thresholds?.apiLatencyMs || 3000;
 
-  // ---- 문제만 추려 "이슈 요약" 구성 ----
+  // ---- 문제만 추려 "이슈" 구성 (개발자가 그대로 고칠 수 있도록 원인 전문 포함) ----
   const brokenLinks = r.links.filter((l) => !l.ok);
   const brokenImages = r.images.filter((i) => !i.ok);
   const failedPages = r.pages.filter((p) => !p.ok);
   const fpApis = r.apis.filter((a) => a.firstParty);
   const failedApis = fpApis.filter((a) => !a.ok);
-  const slowApis = fpApis.filter((a) => a.latencyMs != null && a.latencyMs > apiThreshold);
+  const slowApis = fpApis.filter((a) => a.latencyMs != null && a.latencyMs > apiThreshold && a.ok);
 
-  const issues = [];
-  for (const p of failedPages) {
-    const reasons = [];
-    if (p.navError) reasons.push(`접속오류 ${esc(p.navError)}`);
-    if (p.failedRequests?.length) reasons.push(`자사 리소스 실패 ${p.failedRequests.length}`);
-    if (p.consoleErrors?.length) reasons.push(`콘솔 에러 ${p.consoleErrors.length}`);
-    if (p.slow) reasons.push(`느린 로드 ${p.loadMs}ms`);
-    issues.push({ sev: "ng", kind: "페이지", status: p.status, url: p.finalUrl || p.url, note: reasons.join(" · ") || "판정 실패" });
-  }
-  for (const l of brokenLinks) {
-    issues.push({
-      sev: "ng",
-      kind: l.type === "internal" ? "링크(내부)" : "링크(외부)",
-      status: l.status,
-      url: l.url,
-      note: `${esc(l.error || "")} · 발견: ${foundOnCell(l.foundOn)}`,
-    });
-  }
-  for (const i of brokenImages) {
-    issues.push({ sev: "ng", kind: "이미지", status: i.status, url: i.url, note: `${esc(i.error || "")} · 발견: ${foundOnCell(i.foundOn)}` });
-  }
-  for (const a of failedApis) {
-    issues.push({ sev: "ng", kind: "API", status: a.status, url: a.url, note: `${esc(a.method)} · ${a.latencyMs ?? "-"}ms` });
-  }
-  for (const a of slowApis) {
-    if (!a.ok) continue; // 이미 실패로 잡힌 건 중복 제외
-    issues.push({ sev: "warn", kind: "API 느림", status: a.status, url: a.url, note: `${esc(a.method)} · ${a.latencyMs}ms (임계 ${apiThreshold}ms)` });
-  }
-  // 심각(ng) 먼저, 그다음 경고(warn)
-  issues.sort((a, b) => (a.sev === b.sev ? 0 : a.sev === "ng" ? -1 : 1));
+  // 이슈 도출(공용 로직) → 과거 실행과 비교해 분류(신규/지속/회귀)·빈도 부여
+  const issues = annotateHistory(deriveIssues(r), r, opts.dataDir);
+  const hasHistory = issues.some((it) => it.history); // 분류 정보가 붙었는지
 
-  const issuesRows = issues
-    .map(
-      (it) => `
-      <tr class="${it.sev === "ng" ? "row-bad" : "row-warn"}">
-        <td><span class="badge ${it.sev}">${it.sev === "ng" ? "문제" : "경고"}</span></td>
-        <td>${esc(it.kind)}</td>
-        <td>${statusCell(it.status)}</td>
-        <td class="url">${aLink(it.url, { n: 60 })}</td>
-        <td class="note">${it.note}</td>
-      </tr>`
-    )
-    .join("");
+  // ---- 이슈 카드(개발자용): 종류·상태·대상 + 분류/빈도 + 스크린샷 + 원인 전문 ----
+  const classBadge = (h) =>
+    h
+      ? `<span class="tag tag-${h.cls.tone}">${h.cls.label}</span>` +
+        `<span class="tag tag-freq tag-${h.freq.tone}" title="최근 ${h.freq.total}회 중 ${h.freq.count}회 발생">${h.freq.label} ${h.freq.pct}%</span>`
+      : "";
+  const issueCard = (it) => {
+    const detailHtml = it.details?.length
+      ? `<ul class="issue-detail">${it.details
+          .map((d) => `<li>${esc(d)}</li>`)
+          .join("")}</ul>`
+      : "";
+    const shotHtml = it.screenshot
+      ? `<a class="shot" href="${it.screenshot}" target="_blank" rel="noopener" title="클릭하면 원본 크기로 열기"><img src="${it.screenshot}" alt="실패 화면 스크린샷" loading="lazy"></a>`
+      : "";
+    return `
+      <div class="issue ${it.sev}">
+        <div class="issue-head">
+          <span class="badge ${it.sev}">${it.sev === "ng" ? "문제" : "경고"}</span>
+          ${classBadge(it.history)}
+          <span class="issue-kind">${esc(it.kind)}</span>
+          ${statusCell(it.status)}
+          <span class="issue-sum">${esc(it.summary)}</span>
+        </div>
+        <div class="issue-url">${aLink(it.url, { n: 90 })}</div>
+        ${detailHtml}
+        ${shotHtml}
+      </div>`;
+  };
 
   const issuesPanel = issues.length
-    ? `<table>
-        <thead><tr><th>심각도</th><th>종류</th><th>상태</th><th>대상 (클릭하여 열기)</th><th>비고 · 발견 위치</th></tr></thead>
-        <tbody>${issuesRows}</tbody>
-      </table>`
+    ? `<div class="issue-list">${issues.map(issueCard).join("")}</div>`
     : `<div class="verdict-ok">✅ 발견된 문제 없음 — 점검한 모든 페이지·링크·이미지·API 정상</div>`;
+
+  // ---- 개발자 공유용 평문 텍스트 (복사 버튼이 이걸 클립보드로) ----
+  const shareLines = [];
+  shareLines.push(
+    `[웹 헬스체크] ${m.overallHealthy ? "✅ 정상" : "❌ 이상 " + issues.length + "건"} — ${m.target}`
+  );
+  shareLines.push(`실행: ${kstString(m.startedAt)} · runId ${m.runId}`);
+  if (m.gitSha) shareLines.push(`sha: ${m.gitSha.slice(0, 7)}`);
+  if (m.runUrl) shareLines.push(`CI: ${m.runUrl}`);
+  shareLines.push("");
+  if (!issues.length) {
+    shareLines.push("점검한 모든 페이지·링크·이미지·API 정상.");
+  } else {
+    let n = 0;
+    for (const it of issues) {
+      n++;
+      const tags = [it.sev === "ng" ? "문제" : "경고"];
+      if (it.history) tags.push(it.history.cls.label, `${it.history.freq.label} ${it.history.freq.pct}%`);
+      shareLines.push(`${n}. [${tags.join("·")}] ${it.kind} (${it.status || "ERR"}) ${it.summary}`);
+      shareLines.push(`   ${it.url}`);
+      for (const d of it.details || []) shareLines.push(`   - ${d}`);
+    }
+  }
+  const shareText = shareLines.join("\n");
 
   // ---- 한눈 요약 헤드라인 ----
   const hl = [];
@@ -135,7 +164,6 @@ export function renderHtmlReport(r) {
     { label: "링크", value: s.linksChecked, sub: `깨짐 ${s.linksBroken}`, bad: s.linksBroken > 0, href: "#sec-links" },
     { label: "이미지", value: s.imagesChecked, sub: `깨짐 ${s.imagesBroken}`, bad: s.imagesBroken > 0, href: "#sec-images" },
     { label: "API(자사)", value: s.apisFirstParty ?? s.apisChecked, sub: `실패 ${s.apisFailed} · 느림 ${s.apisSlow}`, bad: s.apisFailed > 0, href: "#sec-api" },
-    { label: "외부 호출", value: s.apisChecked - (s.apisFirstParty ?? s.apisChecked), sub: "분석/광고 비콘", bad: false, href: "#sec-api" },
     { label: "콘솔 에러", value: s.consoleErrorsTotal, sub: "자사 기준", bad: s.consoleErrorsTotal > 0, href: "#sec-pages" },
   ];
   const cardHtml = cards
@@ -143,13 +171,26 @@ export function renderHtmlReport(r) {
       (c) => `
       <a class="card ${c.bad ? "bad" : "good"}" href="${c.href}">
         <div class="card-val">${c.value}</div>
-        <div class="card-label">${c.label}</div>
+        <div class="card-label">${esc(c.label)}</div>
         <div class="card-sub">${esc(c.sub)}</div>
       </a>`
     )
     .join("");
 
-  // ---- 접이식 전체 목록 ----
+  // ---- 접이식 전체 목록 (문제 먼저, 정상은 SAMPLE_OK개만 표시) ----
+  // 문제 행은 전부, 정상 행은 일부만 — 용량과 가독성을 위해.
+  const capRows = (rows, makeRow) => {
+    const bad = rows.filter((x) => !x.ok);
+    const ok = rows.filter((x) => x.ok);
+    const shownOk = ok.slice(0, SAMPLE_OK);
+    let html = [...bad, ...shownOk].map(makeRow).join("");
+    const hiddenOk = ok.length - shownOk.length;
+    if (hiddenOk > 0) {
+      html += `<tr><td colspan="9" class="more">… 정상 ${hiddenOk}건 더 있음 (전체는 JSON 참조)</td></tr>`;
+    }
+    return html || `<tr><td colspan="9" class="empty">항목 없음</td></tr>`;
+  };
+
   const linkRow = (l) => `
       <tr class="${l.ok ? "" : "row-bad"}">
         <td>${statusCell(l.status)}</td>
@@ -157,7 +198,7 @@ export function renderHtmlReport(r) {
         <td class="url">${aLink(l.url, { n: 60 })}</td>
         <td class="url">${foundOnCell(l.foundOn)}</td>
       </tr>`;
-  const allLinkRows = [...r.links].sort((a, b) => Number(a.ok) - Number(b.ok)).map(linkRow).join("");
+  const allLinkRows = capRows(r.links, linkRow);
 
   const imageRow = (i) => `
       <tr class="${i.ok ? "" : "row-bad"}">
@@ -165,22 +206,30 @@ export function renderHtmlReport(r) {
         <td class="url">${aLink(i.url, { n: 70 })}</td>
         <td class="url">${foundOnCell(i.foundOn)}</td>
       </tr>`;
-  const allImageRows = [...r.images].sort((a, b) => Number(a.ok) - Number(b.ok)).map(imageRow).join("");
+  const allImageRows = capRows(r.images, imageRow);
 
-  const shownApis = r.apis.filter((a) => a.firstParty || !a.ok).sort((a, b) => (b.latencyMs ?? 0) - (a.latencyMs ?? 0));
+  // API: 문제(실패+느림)는 항상 전부, 정상 자사 API는 느린 순 SAMPLE_OK개만.
+  // (정상 운영 시 자사 API가 수백~수천 개라 통째로 넣으면 리포트가 무겁고 노이즈가 됨)
+  const apiProblem = (a) => !a.ok || (a.latencyMs != null && a.latencyMs > apiThreshold);
+  const sortByLatency = (a, b) => (b.latencyMs ?? 0) - (a.latencyMs ?? 0);
+  const fpProblemApis = fpApis.filter(apiProblem).sort(sortByLatency);
+  const failedExtApis = r.apis.filter((a) => !a.firstParty && !a.ok).sort(sortByLatency);
+  const okFpSample = fpApis.filter((a) => !apiProblem(a)).sort(sortByLatency).slice(0, SAMPLE_OK);
+  const shownApis = [...fpProblemApis, ...failedExtApis, ...okFpSample];
   const hiddenApis = r.apis.length - shownApis.length;
-  const apiRows = shownApis
-    .map(
-      (a) => `
+  const apiRow = (a) => `
       <tr class="${a.ok ? "" : "row-bad"}">
         <td>${statusCell(a.status)}</td>
         <td><span class="badge ${a.firstParty ? "ok" : "muted"}">${a.firstParty ? "자사" : "외부"}</span></td>
         <td><code>${esc(a.method)}</code></td>
         <td class="url">${aLink(a.url, { n: 60 })}</td>
         <td class="num ${a.latencyMs && a.latencyMs > apiThreshold ? "ng-text" : ""}">${a.latencyMs ?? "-"}</td>
-      </tr>`
-    )
-    .join("");
+      </tr>`;
+  const apiRows =
+    shownApis.map(apiRow).join("") +
+    (hiddenApis > 0
+      ? `<tr><td colspan="5" class="more">… 정상 API ${hiddenApis}건 더 있음 (전체는 JSON 참조)</td></tr>`
+      : "") || `<tr><td colspan="5" class="empty">수집된 API 없음</td></tr>`;
 
   const pageRows = [...r.pages]
     .sort((a, b) => Number(a.ok) - Number(b.ok))
@@ -242,30 +291,57 @@ export function renderHtmlReport(r) {
   .card-sub{font-size:11.5px;margin-top:5px;color:var(--muted)}
   .verdict-ok{background:rgba(46,204,113,.1);border:1px solid rgba(46,204,113,.35);color:var(--ok);
               border-radius:12px;padding:22px;text-align:center;font-size:16px;font-weight:600}
+  /* 개발자 공유 바 */
+  .sharebar{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin:6px 0 2px}
+  .btn{appearance:none;cursor:pointer;border:1px solid var(--accent);background:rgba(91,156,255,.12);color:var(--accent);
+       font-weight:600;font-size:13px;padding:9px 16px;border-radius:10px;transition:.12s}
+  .btn:hover{background:rgba(91,156,255,.22)}
+  .btn.copied{border-color:var(--ok);color:var(--ok);background:rgba(46,204,113,.14)}
+  .sharehint{color:var(--muted);font-size:12.5px}
+  .legend{color:var(--muted);font-size:12px;margin:4px 0 10px;line-height:2}
+  /* 이슈 카드 (개발자용) */
+  .issue-list{display:flex;flex-direction:column;gap:10px}
+  .issue{background:var(--panel);border:1px solid var(--line);border-left-width:4px;border-radius:10px;padding:12px 14px}
+  .issue.ng{border-left-color:var(--ng)}
+  .issue.warn{border-left-color:var(--warn)}
+  .issue-head{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+  .issue-kind{font-weight:700}
+  .issue-sum{color:var(--muted);font-size:12.5px}
+  .issue-url{margin:6px 0 0;word-break:break-all}
+  .issue-url a{color:var(--accent);text-decoration:none}
+  .issue-url a:hover{text-decoration:underline}
+  .issue-detail{margin:8px 0 0;padding-left:18px;color:var(--txt);font-size:12.5px}
+  .issue-detail li{margin:2px 0;word-break:break-all;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;color:#cdd3e0}
+  /* 분류·빈도 태그 */
+  .tag{display:inline-block;padding:1px 8px;border-radius:6px;font-size:11.5px;font-weight:700;white-space:nowrap;border:1px solid transparent}
+  .tag-new{background:rgba(91,156,255,.16);color:var(--accent);border-color:rgba(91,156,255,.4)}
+  .tag-regression{background:rgba(255,84,112,.16);color:var(--ng);border-color:rgba(255,84,112,.45)}
+  .tag-ongoing{background:#222733;color:var(--muted)}
+  .tag-freq{background:transparent;color:var(--muted);border-color:var(--line);font-weight:600}
+  .tag-freq.tag-always{color:var(--ng);border-color:rgba(255,84,112,.4)}
+  .tag-freq.tag-often{color:var(--warn);border-color:rgba(241,196,15,.4)}
+  /* 실패 화면 스크린샷 썸네일 */
+  .shot{display:inline-block;margin:10px 0 2px;border:1px solid var(--line);border-radius:8px;overflow:hidden;line-height:0}
+  .shot:hover{border-color:var(--accent)}
+  .shot img{display:block;max-width:340px;width:100%;height:auto}
   table{width:100%;border-collapse:collapse;font-size:13px}
   thead th{background:var(--panel2);color:var(--muted);font-weight:600;text-align:left;padding:9px 11px;position:sticky;top:0;z-index:1}
   td{padding:8px 11px;border-top:1px solid var(--line);vertical-align:top}
   td.num{text-align:right;font-variant-numeric:tabular-nums}
   td.url{max-width:380px;word-break:break-all}
-  td.note{color:var(--muted)}
+  td.more,td.empty{color:var(--muted);text-align:center;font-size:12.5px;padding:12px}
   a{color:var(--accent)}
-  td.url a,td.note a{color:var(--accent);text-decoration:none}
-  td.url a:hover,td.note a:hover{text-decoration:underline}
+  td.url a{color:var(--accent);text-decoration:none}
+  td.url a:hover{text-decoration:underline}
   .muted{color:var(--muted)}
   .row-bad{background:rgba(255,84,112,.07)}
-  .row-warn{background:rgba(241,196,15,.07)}
   .ng-text{color:var(--ng);font-weight:600}
-  /* 이슈 요약 패널 */
-  .issues{border:1px solid rgba(255,84,112,.4);border-radius:12px;overflow:hidden;background:var(--panel)}
-  .issues table{border:none}
-  .verdict-wrap table{background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden}
   .badge{display:inline-block;padding:1px 9px;border-radius:999px;font-size:12px;font-weight:700;white-space:nowrap}
   .badge.ok{background:rgba(46,204,113,.18);color:var(--ok)}
   .badge.warn{background:rgba(241,196,15,.2);color:var(--warn)}
   .badge.ng{background:rgba(255,84,112,.2);color:var(--ng)}
   .badge.muted{background:#222733;color:var(--muted)}
   code{background:#222733;padding:1px 5px;border-radius:5px;font-size:12px}
-  /* 접이식 */
   details{background:var(--panel);border:1px solid var(--line);border-radius:12px;margin:12px 0;overflow:hidden}
   details[open]{border-color:var(--accent)}
   summary{cursor:pointer;list-style:none;padding:13px 16px;display:flex;align-items:center;justify-content:space-between;font-weight:600}
@@ -292,8 +368,20 @@ export function renderHtmlReport(r) {
 
   <div class="cards">${cardHtml}</div>
 
-  <h2>🚦 이슈 요약 ${issues.length ? `<span class="badge ng">${issues.length}</span>` : `<span class="badge ok">0</span>`}</h2>
-  <div class="${issues.length ? "issues" : "verdict-wrap"}">${issuesPanel}</div>
+  <h2>🚦 이슈 ${issues.length ? `<span class="badge ng">${issues.length}</span>` : `<span class="badge ok">0</span>`}</h2>
+  ${issues.length ? `<div class="sharebar">
+    <button class="btn" id="copyBtn" type="button">📋 개발자 공유용 복사</button>
+    <span class="sharehint">클릭하면 아래 이슈 전체가 텍스트로 복사됩니다 → 슬랙/지라에 붙여넣기</span>
+  </div>` : ""}
+  ${issues.length && hasHistory ? `<div class="legend">분류:
+    <span class="tag tag-new">신규</span> 처음 발생 ·
+    <span class="tag tag-ongoing">지속</span> 직전에도 있던 문제 ·
+    <span class="tag tag-regression">회귀</span> 고쳐졌다 재발생 &nbsp;|&nbsp; 빈도:
+    <span class="tag tag-freq tag-always">항상 100%</span> /
+    <span class="tag tag-freq tag-often">자주 ≥50%</span> /
+    <span class="tag tag-freq">가끔</span> /
+    <span class="tag tag-freq">1회</span> (최근 ${issues[0].history.window}회 기준)</div>` : ""}
+  ${issuesPanel}
 
   <h2>📂 상세 (필요할 때 펼쳐 보기)</h2>
   ${detail(
@@ -306,7 +394,7 @@ export function renderHtmlReport(r) {
   )}
   ${detail(
     "sec-links",
-    "🔗 전체 링크",
+    "🔗 링크",
     brokenLinks.length,
     r.links.length,
     `<tr><th>상태</th><th>구분</th><th>URL</th><th>발견 위치</th></tr>`,
@@ -314,7 +402,7 @@ export function renderHtmlReport(r) {
   )}
   ${detail(
     "sec-images",
-    "🖼️ 전체 이미지",
+    "🖼️ 이미지",
     brokenImages.length,
     r.images.length,
     `<tr><th>상태</th><th>이미지 URL</th><th>발견 위치</th></tr>`,
@@ -324,14 +412,39 @@ export function renderHtmlReport(r) {
     "sec-api",
     "🔌 API 검수 (자사 + 실패 외부)",
     failedApis.length,
-    shownApis.length,
+    fpApis.length,
     `<tr><th>상태</th><th>구분</th><th>메서드</th><th>엔드포인트</th><th>지연(ms)</th></tr>`,
-    apiRows || `<tr><td colspan="5" class="empty">수집된 API 없음</td></tr>`
+    apiRows
   )}
-  ${hiddenApis > 0 ? `<div class="meta">↑ 정상 외부 분석/광고 비콘 ${hiddenApis}건은 생략(전체는 JSON 참조).</div>` : ""}
 
   <footer>web-healthcheck · Playwright 자동 생성 · ${esc(kstString(m.finishedAt))}</footer>
 </div>
+
+<textarea id="shareSrc" style="position:absolute;left:-9999px;top:-9999px" readonly>${esc(shareText)}</textarea>
+<script>
+  (function () {
+    var btn = document.getElementById("copyBtn");
+    if (!btn) return;
+    var src = document.getElementById("shareSrc");
+    btn.addEventListener("click", function () {
+      var text = src.value;
+      function done() {
+        var old = btn.textContent;
+        btn.textContent = "✅ 복사됨";
+        btn.classList.add("copied");
+        setTimeout(function () { btn.textContent = old; btn.classList.remove("copied"); }, 1800);
+      }
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(done, function () { fallback(); });
+      } else { fallback(); }
+      function fallback() {
+        src.style.left = "0"; src.focus(); src.select();
+        try { document.execCommand("copy"); done(); } catch (e) {}
+        src.style.left = "-9999px";
+      }
+    });
+  })();
+</script>
 </body>
 </html>`;
 }

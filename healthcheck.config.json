@@ -29,5 +29,10 @@
     "concurrency": 6,
     "requestTimeoutMs": 15000,
     "retries": 2
+  },
+  "screenshots": {
+    "enabled": true,
+    "max": 12,
+    "quality": 55
   }
 }
