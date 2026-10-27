@@ -1,0 +1,1038 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>웹 헬스체크 · https://ezlab.im · 20261028_052538</title>
+<style>
+  :root{--bg:#0f1115;--panel:#171a21;--panel2:#1c2029;--line:#262b36;--txt:#e6e9ef;--muted:#8b93a7;
+        --ok:#2ecc71;--warn:#f1c40f;--ng:#ff5470;--accent:#5b9cff;}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--txt);font:14px/1.55 -apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Pretendard",Segoe UI,Roboto,sans-serif}
+  .wrap{max-width:1080px;margin:0 auto;padding:24px 20px 80px}
+  .topbar{position:sticky;top:0;z-index:5;background:linear-gradient(var(--bg),var(--bg) 70%,transparent);
+          display:flex;flex-wrap:wrap;align-items:center;gap:12px;justify-content:space-between;padding:10px 0 12px;margin-bottom:6px}
+  h1{font-size:19px;margin:0;display:flex;align-items:center;gap:8px}
+  .hero{display:flex;align-items:center;gap:10px}
+  .status-hero{font-size:15px;font-weight:700;padding:7px 16px;border-radius:999px;white-space:nowrap}
+  .status-hero.ok{background:rgba(46,204,113,.16);color:var(--ok);border:1px solid rgba(46,204,113,.4)}
+  .status-hero.ng{background:rgba(255,84,112,.16);color:var(--ng);border:1px solid rgba(255,84,112,.45)}
+  .headline{font-size:13px;color:var(--muted)}
+  .headline.ng{color:var(--ng);font-weight:600}
+  .meta{color:var(--muted);font-size:12.5px;margin-bottom:18px}
+  .meta a{color:var(--accent)}
+  h2{font-size:15px;margin:30px 0 12px;display:flex;align-items:center;gap:8px}
+  .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:16px 0 8px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px;text-align:center;text-decoration:none;color:inherit;transition:.12s}
+  .card:hover{border-color:var(--accent)}
+  .card.bad{border-color:rgba(255,84,112,.55);background:rgba(255,84,112,.05)}
+  .card-val{font-size:28px;font-weight:700;line-height:1.1}
+  .card.bad .card-val{color:var(--ng)}
+  .card-label{color:var(--muted);font-size:12.5px;margin-top:3px}
+  .card-sub{font-size:11.5px;margin-top:5px;color:var(--muted)}
+  .verdict-ok{background:rgba(46,204,113,.1);border:1px solid rgba(46,204,113,.35);color:var(--ok);
+              border-radius:12px;padding:22px;text-align:center;font-size:16px;font-weight:600}
+  /* 개발자 공유 바 */
+  .sharebar{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin:6px 0 2px}
+  .btn{appearance:none;cursor:pointer;border:1px solid var(--accent);background:rgba(91,156,255,.12);color:var(--accent);
+       font-weight:600;font-size:13px;padding:9px 16px;border-radius:10px;transition:.12s}
+  .btn:hover{background:rgba(91,156,255,.22)}
+  .btn.copied{border-color:var(--ok);color:var(--ok);background:rgba(46,204,113,.14)}
+  .sharehint{color:var(--muted);font-size:12.5px}
+  .legend{color:var(--muted);font-size:12px;margin:4px 0 10px;line-height:2}
+  /* 이슈 카드 (개발자용) */
+  .issue-list{display:flex;flex-direction:column;gap:10px}
+  .issue{background:var(--panel);border:1px solid var(--line);border-left-width:4px;border-radius:10px;padding:12px 14px}
+  .issue.ng{border-left-color:var(--ng)}
+  .issue.warn{border-left-color:var(--warn)}
+  .issue-head{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+  .issue-kind{font-weight:700}
+  .issue-sum{color:var(--muted);font-size:12.5px}
+  .issue-url{margin:6px 0 0;word-break:break-all}
+  .issue-url a{color:var(--accent);text-decoration:none}
+  .issue-url a:hover{text-decoration:underline}
+  .issue-detail{margin:8px 0 0;padding-left:18px;color:var(--txt);font-size:12.5px}
+  .issue-detail li{margin:2px 0;word-break:break-all;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;color:#cdd3e0}
+  /* 분류·빈도 태그 */
+  .tag{display:inline-block;padding:1px 8px;border-radius:6px;font-size:11.5px;font-weight:700;white-space:nowrap;border:1px solid transparent}
+  .tag-new{background:rgba(91,156,255,.16);color:var(--accent);border-color:rgba(91,156,255,.4)}
+  .tag-regression{background:rgba(255,84,112,.16);color:var(--ng);border-color:rgba(255,84,112,.45)}
+  .tag-ongoing{background:#222733;color:var(--muted)}
+  .tag-freq{background:transparent;color:var(--muted);border-color:var(--line);font-weight:600}
+  .tag-freq.tag-always{color:var(--ng);border-color:rgba(255,84,112,.4)}
+  .tag-freq.tag-often{color:var(--warn);border-color:rgba(241,196,15,.4)}
+  /* 실패 화면 스크린샷 썸네일 */
+  .shot{display:inline-block;margin:10px 0 2px;border:1px solid var(--line);border-radius:8px;overflow:hidden;line-height:0}
+  .shot:hover{border-color:var(--accent)}
+  .shot img{display:block;max-width:340px;width:100%;height:auto}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  thead th{background:var(--panel2);color:var(--muted);font-weight:600;text-align:left;padding:9px 11px;position:sticky;top:0;z-index:1}
+  td{padding:8px 11px;border-top:1px solid var(--line);vertical-align:top}
+  td.num{text-align:right;font-variant-numeric:tabular-nums}
+  td.url{max-width:380px;word-break:break-all}
+  td.more,td.empty{color:var(--muted);text-align:center;font-size:12.5px;padding:12px}
+  a{color:var(--accent)}
+  td.url a{color:var(--accent);text-decoration:none}
+  td.url a:hover{text-decoration:underline}
+  .muted{color:var(--muted)}
+  .row-bad{background:rgba(255,84,112,.07)}
+  .ng-text{color:var(--ng);font-weight:600}
+  .badge{display:inline-block;padding:1px 9px;border-radius:999px;font-size:12px;font-weight:700;white-space:nowrap}
+  .badge.ok{background:rgba(46,204,113,.18);color:var(--ok)}
+  .badge.warn{background:rgba(241,196,15,.2);color:var(--warn)}
+  .badge.ng{background:rgba(255,84,112,.2);color:var(--ng)}
+  .badge.muted{background:#222733;color:var(--muted)}
+  code{background:#222733;padding:1px 5px;border-radius:5px;font-size:12px}
+  details{background:var(--panel);border:1px solid var(--line);border-radius:12px;margin:12px 0;overflow:hidden}
+  details[open]{border-color:var(--accent)}
+  summary{cursor:pointer;list-style:none;padding:13px 16px;display:flex;align-items:center;justify-content:space-between;font-weight:600}
+  summary::-webkit-details-marker{display:none}
+  .sum-meta{color:var(--muted);font-weight:500;font-size:12.5px}
+  .scroll{max-height:440px;overflow:auto;border-top:1px solid var(--line)}
+  footer{margin-top:40px;color:var(--muted);font-size:12px;text-align:center}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="topbar">
+    <h1>🩺 웹 헬스체크 리포트</h1>
+    <div class="hero">
+      <span class="headline ng">문제 5건 — 링크 3, 이미지 2</span>
+      <span class="status-hero ng">❌ 이상</span>
+    </div>
+  </div>
+  <div class="meta">
+    대상 <strong><a href="https://ezlab.im" target="_blank" rel="noopener" title="https://ezlab.im">https://ezlab.im</a></strong> · 실행 2026-10-28 05:25:38 KST ·
+    소요 229.3s · runId <code>20261028_052538</code>
+     · sha <code>60a8367</code> <a href="https://github.com/macpark85/web-helthcheck/actions/runs/40577852126" target="_blank" rel="noopener">CI 실행 ↗</a>
+  </div>
+
+  <div class="cards">
+      <a class="card good" href="#sec-pages">
+        <div class="card-val">40</div>
+        <div class="card-label">페이지</div>
+        <div class="card-sub">실패 0</div>
+      </a>
+      <a class="card bad" href="#sec-links">
+        <div class="card-val">112</div>
+        <div class="card-label">링크</div>
+        <div class="card-sub">깨짐 3</div>
+      </a>
+      <a class="card bad" href="#sec-images">
+        <div class="card-val">1868</div>
+        <div class="card-label">이미지</div>
+        <div class="card-sub">깨짐 2</div>
+      </a>
+      <a class="card good" href="#sec-api">
+        <div class="card-val">839</div>
+        <div class="card-label">API(자사)</div>
+        <div class="card-sub">실패 0 · 느림 0</div>
+      </a>
+      <a class="card good" href="#sec-pages">
+        <div class="card-val">0</div>
+        <div class="card-label">콘솔 에러</div>
+        <div class="card-sub">자사 기준</div>
+      </a></div>
+
+  <h2>🚦 이슈 <span class="badge ng">5</span></h2>
+  <div class="sharebar">
+    <button class="btn" id="copyBtn" type="button">📋 개발자 공유용 복사</button>
+    <span class="sharehint">클릭하면 아래 이슈 전체가 텍스트로 복사됩니다 → 슬랙/지라에 붙여넣기</span>
+  </div>
+  <div class="legend">분류:
+    <span class="tag tag-new">신규</span> 처음 발생 ·
+    <span class="tag tag-ongoing">지속</span> 직전에도 있던 문제 ·
+    <span class="tag tag-regression">회귀</span> 고쳐졌다 재발생 &nbsp;|&nbsp; 빈도:
+    <span class="tag tag-freq tag-always">항상 100%</span> /
+    <span class="tag tag-freq tag-often">자주 ≥50%</span> /
+    <span class="tag tag-freq">가끔</span> /
+    <span class="tag tag-freq">1회</span> (최근 1회 기준)</div>
+  <div class="issue-list">
+      <div class="issue ng">
+        <div class="issue-head">
+          <span class="badge ng">문제</span>
+          <span class="tag tag-new">신규</span><span class="tag tag-freq tag-once" title="최근 1회 중 1회 발생">1회 100%</span>
+          <span class="issue-kind">링크(외부)</span>
+          <span class="badge ng">429</span>
+          <span class="issue-sum">HTTP 429</span>
+        </div>
+        <div class="issue-url"><a href="https://www.instagram.com/ezlab_official/" target="_blank" rel="noopener" title="https://www.instagram.com/ezlab_official/">https://www.instagram.com/ezlab_official/</a></div>
+        <ul class="issue-detail"><li>발견 위치: https://ezlab.im/ko/event/branding</li></ul>
+        
+      </div>
+      <div class="issue ng">
+        <div class="issue-head">
+          <span class="badge ng">문제</span>
+          <span class="tag tag-new">신규</span><span class="tag tag-freq tag-once" title="최근 1회 중 1회 발생">1회 100%</span>
+          <span class="issue-kind">링크(외부)</span>
+          <span class="badge ng">ERR</span>
+          <span class="issue-sum">fetch failed</span>
+        </div>
+        <div class="issue-url"><a href="https://privacy.kisa.or.kr/" target="_blank" rel="noopener" title="https://privacy.kisa.or.kr/">https://privacy.kisa.or.kr/</a></div>
+        <ul class="issue-detail"><li>발견 위치: https://ezlab.im/ko/term/38</li></ul>
+        
+      </div>
+      <div class="issue ng">
+        <div class="issue-head">
+          <span class="badge ng">문제</span>
+          <span class="tag tag-new">신규</span><span class="tag tag-freq tag-once" title="최근 1회 중 1회 발생">1회 100%</span>
+          <span class="issue-kind">링크(외부)</span>
+          <span class="badge ng">404</span>
+          <span class="issue-sum">HTTP 404</span>
+        </div>
+        <div class="issue-url"><a href="https://ecrm.police.go.kr/" target="_blank" rel="noopener" title="https://ecrm.police.go.kr/">https://ecrm.police.go.kr/</a></div>
+        <ul class="issue-detail"><li>발견 위치: https://ezlab.im/ko/term/38</li></ul>
+        
+      </div>
+      <div class="issue ng">
+        <div class="issue-head">
+          <span class="badge ng">문제</span>
+          <span class="tag tag-new">신규</span><span class="tag tag-freq tag-once" title="최근 1회 중 1회 발생">1회 100%</span>
+          <span class="issue-kind">이미지</span>
+          <span class="badge ng">404</span>
+          <span class="issue-sum">HTTP 404</span>
+        </div>
+        <div class="issue-url"><a href="https://act.ds.kakao.com/match?d=111&amp;uid=26685637.1793132743304" target="_blank" rel="noopener" title="https://act.ds.kakao.com/match?d=111&amp;uid=26685637.1793132743304">https://act.ds.kakao.com/match?d=111&amp;uid=26685637.1793132743304</a></div>
+        <ul class="issue-detail"><li>발견 위치: https://ezlab.im/ko</li></ul>
+        
+      </div>
+      <div class="issue ng">
+        <div class="issue-head">
+          <span class="badge ng">문제</span>
+          <span class="tag tag-new">신규</span><span class="tag tag-freq tag-once" title="최근 1회 중 1회 발생">1회 100%</span>
+          <span class="issue-kind">이미지</span>
+          <span class="badge ng">ERR</span>
+          <span class="issue-sum">fetch failed</span>
+        </div>
+        <div class="issue-url"><a href="https://dable-api.scupio.com/dable/v1/exc/?did=26685637.1793132743304" target="_blank" rel="noopener" title="https://dable-api.scupio.com/dable/v1/exc/?did=26685637.1793132743304">https://dable-api.scupio.com/dable/v1/exc/?did=26685637.1793132743304</a></div>
+        <ul class="issue-detail"><li>발견 위치: https://ezlab.im/ko</li></ul>
+        
+      </div></div>
+
+  <h2>📂 상세 (필요할 때 펼쳐 보기)</h2>
+  
+  <details id="sec-pages">
+    <summary><span class="sum-title">📄 페이지별 점검</span>
+      <span class="sum-meta">40건 · 정상 ▾</span>
+    </summary>
+    <div class="scroll"><table><thead><tr><th>상태</th><th>URL</th><th>제목</th><th>로드(ms)</th><th>콘솔</th><th>리소스</th><th>판정</th></tr></thead><tbody>
+      <tr class="">
+        <td><span class="badge ok">200</span></td>
+        <td class="url"><a href="https://ezlab.im/ko" target="_blank" rel="noopener" title="https://ezlab.im/ko">https://ezlab.im/ko</a></td>
+        <td>이지랩 | ezLab</td>
+        <td class="num ng-text">10271</td>
+        <td class="num ">0</td>
+        <td class="num ">0<span class="muted"> (+1외부)</span></td>
+        <td><span class="badge ok">정상</span></td>
+      </tr>
+      <tr class="">
+        <td><span class="badge ok">200</span></td>
+        <td class="url"><a href="https://ezlab.im/en" target="_blank" rel="noopener" title="https://ezlab.im/en">https://ezlab.im/en</a></td>
+        <td>ezLab | ezLab</td>
+        <td class="num ">2928</td>
+        <td class="num ">0</td>
+        <td class="num ">0</td>
+        <td><span class="badge ok">정상</span></td>
+      </tr>
+      <tr class="">
+        <td><span class="badge ok">200</span></td>
+        <td class="url"><a href="https://ezlab.im/jp" target="_blank" rel="noopener" title="https://ezlab.im/jp">https://ezlab.im/jp</a></td>
+        <td>ezLab | ezLab</td>
+        <td class="num ">2807</td>
+        <td class="num ">0</td>
+        <td class="num ">0</td>
+        <td><span class="badge ok">정상</span></td>
+      </tr>
+      <tr class="">
+        <td><span class="badge ok">200</span></td>
+        <td class="url"><a href="https://ezlab.im/tw" target="_blank" rel="noopener" title="https://ezlab.im/tw">https://ezlab.im/tw</a></td>
+        <td>ezLab | ezLab</td>
+        <td class="num ">2785</td>
+        <td class="num ">0</td>
+        <td class="num ">0</td>
+        <td><span class="badge ok">정상</span></td>
+      </tr>
+      <tr class="">
+        <td><span class="badge ok">200</span></td>
+        <td class="url"><a href="https://ezlab.im/ko/tool/ezcapture" target="_blank" rel="noopener" title="https://ezlab.im/ko/tool/ezcapture">https://ezlab.im/ko/tool/ezcapture</a></td>
+        <td>이지캡처 | ezLab</td>
+        <td class="num ">3053</td>
+        <td class="num ">0</td>
+        <td class="num ">0</td>
+        <td><span class="badge ok">정상</span></td>
+      </tr>
+      <tr class="">
+        <td><span class="badge ok">200</span></td>
+        <td class="url"><a href="https://ezlab.im/ko/tool/ezzip" target="_blank" rel="noopener" title="https://ezlab.im/ko/tool/ezzip">https://ezlab.im/ko/tool/ezzip</a></td>
+        <td>이지집 | ezLab</td>
+        <td class="num ">2805</td>
+        <td class="num ">0</td>
+        <td class="num ">0</td>
+        <td><span class="badge ok">정상</span></td>
+      </tr>
+      <tr class="">
+        <td><span class="badge ok">200</span></td>
+        <td class="url"><a href="https://ezlab.im/ko/tool/ezfinder" target="_blank" rel="noopener" title="https://ezlab.im/ko/tool/ezfinder">https://ezlab.im/ko/tool/ezfinder</a></td>
+        <td>이지파인더 | ezLab</td>
+        <td class="num ">2974</td>
+        <td class="num ">0</td>
+        <td class="num ">0</td>
+        <td><span class="badge ok">정상</span></td>
+      </tr>
+      <tr class="">
+        <td><span class="badge ok">200</span></td>
+        <td class="url"><a href="https://ezlab.im/ko/tool/ezmemo" target="_blank" rel="noopener" title="https://ezlab.im/ko/tool/ezmemo">https://ezlab.im/ko/tool/ezmemo</a></td>
+        <td>이지메모 | ezLab</td>
+        <td class="num ">3568</td>
+        <td class="num ">0</td>
+        <td class="num ">0</td>
+        <td><span class="badge ok">정상</span></td>
+      </tr>
+      <tr class="">
+        <td><span class="badge ok">200</span></td>
+        <td class="url"><a href="https://ezlab.im/ko/tool/ezcam" target="_blank" rel="noopener" title="https://ezlab.im/ko/tool/ezcam">https://ezlab.im/ko/tool/ezcam</a></td>
+        <td>이지캠 | ezLab</td>
+        <td class="num ">2962</td>
+        <td class="num ">0</td>
+        <td class="num ">0</td>
+        <td><span class="badge ok">정상</span></td>
+      </tr>
+      <tr class="">
+        <td><span class="badge ok">200</span></td>
+        <td class="url"><a href="https://ezlab.im/ko/tool/ezdown" target="_blank" rel="noopener" title="https://ezlab.im/ko/tool/ezdown">https://ezlab.im/ko/tool/ezdown</a></td>
+        <td>이지다운 | ezLab</td>
+        <td class="num ">2502</td>
+        <td class="num ">0</td>
+        <td class="num ">0</td>
+        <td><span class="badge ok">정상</span></td>
+      </tr>
+      <tr class="">
+        <td><span class="badge ok">200</span></td>
+        <td class="url"><a href="https://ezlab.im/ko/tool/eznote" target="_blank" rel="noopener" title="https://ezlab.im/ko/tool/eznote">https://ezlab.im/ko/tool/eznote</a></td>
+        <td>이지노트(Beta) | ezLab</td>
+        <td class="num ">2403</td>
+        <td class="num ">0</td>
+        <td class="num ">0</td>
+        <td><span class="badge ok">정상</span></td>
+      </tr>
+      <tr class="">
+        <td><span class="badge ok">200</span></td>
+        <td class="url"><a href="https://ezlab.im/ko/tool/ezmanager" target="_blank" rel="noopener" title="https://ezlab.im/ko/tool/ezmanager">https://ezlab.im/ko/tool/ezmanager</a></td>
+        <td>이지매니저 | ezLab</td>
+        <td class="num ">2958</td>
+        <td class="num ">0</td>
+        <td class="num ">0</td>
+        <td><span class="badge ok">정상</span></td>
+      </tr>
+      <tr class="">
+        <td><span class="badge ok">200</span></td>
+        <td class="url"><a href="https://ezlab.im/ko/contact/notice" target="_blank" rel="noopener" title="https://ezlab.im/ko/contact/notice">https://ezlab.im/ko/contact/notice</a></td>
+        <td>공지사항 | ezLab</td>
+        <td class="num ">3216</td>
+        <td class="num ">0</td>
+        <td class="num ">0</td>
+        <td><span class="badge ok">정상</span></td>
+      </tr>
+      <tr class="">
+        <td><span class="badge ok">200</span></td>
+        <td class="url"><a href="https://ezlab.im/ko/contact/faq" target="_blank" rel="noopener" title="https://ezlab.im/ko/contact/faq">https://ezlab.im/ko/contact/faq</a></td>
+        <td>자주 묻는 질문 | ezLab</td>
+        <td class="num ">2510</td>
+        <td class="num ">0</td>
+        <td class="num ">0</td>
+        <td><span class="badge ok">정상</span></td>
+      </tr>
+      <tr class="">
+        <td><span class="badge ok">200</span></td>
+        <td class="url"><a href="https://ezlab.im/ko/contact/inquiry" target="_blank" rel="noopener" title="https://ezlab.im/ko/contact/inquiry">https://ezlab.im/ko/contact/inquiry</a></td>
+        <td>1:1 문의 | ezLab</td>
+        <td class="num ">2498</td>
+        <td class="num ">0</td>
+        <td class="num ">0</td>
+        <td><span class="badge ok">정상</span></td>
+      </tr>
+      <tr class="">
+        <td><span class="badge ok">200</span></td>
+        <td class="url"><a href="https://ezlab.im/ko/contact/review" target="_blank" rel="noopener" title="https://ezlab.im/ko/contact/review">https://ezlab.im/ko/contact/review</a></td>
+        <td>이용후기 | ezLab</td>
+        <td class="num ">2762</td>
+        <td class="num ">0</td>
+        <td class="num ">0</td>
+        <td><span class="badge ok">정상</span></td>
+      </tr>
+      <tr class="">
+        <td><span class="badge ok">200</span></td>
+        <td class="url"><a href="https://ezlab.im/ko/login?callbackUrl=%2Fpoint" target="_blank" rel="noopener" title="https://ezlab.im/ko/login?callbackUrl=%2Fpoint">https://ezlab.im/ko/login?callbackUrl=%2Fpoint</a></td>
+        <td>로그인 | ezLab</td>
+        <td class="num ">1877</td>
+        <td class="num ">0</td>
+        <td class="num ">0</td>
+        <td><span class="badge ok">정상</span></td>
+      </tr>
+      <tr class="">
+        <td><span class="badge ok">200</span></td>
+        <td class="url"><a href="https://ezlab.im/ko/login?callbackUrl=%2Fmypage" target="_blank" rel="noopener" title="https://ezlab.im/ko/login?callbackUrl=%2Fmypage">https://ezlab.im/ko/login?callbackUrl=%2Fmypage</a></td>
+        <td>로그인 | ezLab</td>
+        <td class="num ">4350</td>
+        <td class="num ">0</td>
+        <td class="num ">0</td>
+        <td><span class="badge ok">정상</span></td>
+      </tr>
+      <tr class="">
+        <td><span class="badge ok">200</span></td>
+        <td class="url"><a href="https://ezlab.im/ko/event/branding" target="_blank" rel="noopener" title="https://ezlab.im/ko/event/branding">https://ezlab.im/ko/event/branding</a></td>
+        <td>이지랩 × 안주미 프로모션 | ezLab</td>
+        <td class="num ">1826</td>
+        <td class="num ">0</td>
+        <td class="num ">0</td>
+        <td><span class="badge ok">정상</span></td>
+      </tr>
+      <tr class="">
+        <td><span class="badge ok">200</span></td>
+        <td class="url"><a href="https://ezlab.im/ko/tool/ezcapture" target="_blank" rel="noopener" title="https://ezlab.im/ko/tool/ezcapture">https://ezlab.im/tool/ezcapture</a></td>
+        <td>이지캡처 | ezLab</td>
+        <td class="num ">4708</td>
+        <td class="num ">0</td>
+        <td class="num ">0</td>
+        <td><span class="badge ok">정상</span></td>
+      </tr>
+      <tr class="">
+        <td><span class="badge ok">200</span></td>
+        <td class="url"><a href="https://ezlab.im/ko/tool/ezzip" target="_blank" rel="noopener" title="https://ezlab.im/ko/tool/ezzip">https://ezlab.im/tool/ezzip</a></td>
+        <td>이지집 | ezLab</td>
+        <td class="num ">4764</td>
+        <td class="num ">0</td>
+        <td class="num ">0</td>
+        <td><span class="badge ok">정상</span></td>
+      </tr>
+      <tr class="">
+        <td><span class="badge ok">200</span></td>
+        <td class="url"><a href="https://ezlab.im/ko/tool/ezfinder" target="_blank" rel="noopener" title="https://ezlab.im/ko/tool/ezfinder">https://ezlab.im/tool/ezfinder</a></td>
+        <td>이지파인더 | ezLab</td>
+        <td class="num ">4732</td>
+        <td class="num ">0</td>
+        <td class="num ">0</td>
+        <td><span class="badge ok">정상</span></td>
+      </tr>
+      <tr class="">
+        <td><span class="badge ok">200</span></td>
+        <td class="url"><a href="https://ezlab.im/ko/tool/ezmemo" target="_blank" rel="noopener" title="https://ezlab.im/ko/tool/ezmemo">https://ezlab.im/tool/ezmemo</a></td>
+        <td>이지메모 | ezLab</td>
+        <td class="num ">4712</td>
+        <td class="num ">0</td>
+        <td class="num ">0</td>
+        <td><span class="badge ok">정상</span></td>
+      </tr>
+      <tr class="">
+        <td><span class="badge ok">200</span></td>
+        <td class="url"><a href="https://ezlab.im/ko/tool/ezcam" target="_blank" rel="noopener" title="https://ezlab.im/ko/tool/ezcam">https://ezlab.im/tool/ezcam</a></td>
+        <td>이지캠 | ezLab</td>
+        <td class="num ">4690</td>
+        <td class="num ">0</td>
+        <td class="num ">0</td>
+        <td><span class="badge ok">정상</span></td>
+      </tr>
+      <tr class="">
+        <td><span class="badge ok">200</span></td>
+        <td class="url"><a href="https://ezlab.im/ko/tool/ezdown" target="_blank" rel="noopener" title="https://ezlab.im/ko/tool/ezdown">https://ezlab.im/tool/ezdown</a></td>
+        <td>이지다운 | ezLab</td>
+        <td class="num ">4738</td>
+        <td class="num ">0</td>
+        <td class="num ">0</td>
+        <td><span class="badge ok">정상</span></td>
+      </tr>
+      <tr class="">
+        <td><span class="badge ok">200</span></td>
+        <td class="url"><a href="https://ezlab.im/ko/tool/eznote" target="_blank" rel="noopener" title="https://ezlab.im/ko/tool/eznote">https://ezlab.im/tool/eznote</a></td>
+        <td>이지노트(Beta) | ezLab</td>
+        <td class="num ">4769</td>
+        <td class="num ">0</td>
+        <td class="num ">0</td>
+        <td><span class="badge ok">정상</span></td>
+      </tr>
+      <tr class="">
+        <td><span class="badge ok">200</span></td>
+        <td class="url"><a href="https://ezlab.im/ko/term/38" target="_blank" rel="noopener" title="https://ezlab.im/ko/term/38">https://ezlab.im/ko/term/38</a></td>
+        <td>ezLab</td>
+        <td class="num ">3051</td>
+        <td class="num ">0</td>
+        <td class="num ">0</td>
+        <td><span class="badge ok">정상</span></td>
+      </tr>
+      <tr class="">
+        <td><span class="badge ok">200</span></td>
+        <td class="url"><a href="https://ezlab.im/ko/term/39" target="_blank" rel="noopener" title="https://ezlab.im/ko/term/39">https://ezlab.im/ko/term/39</a></td>
+        <td>ezLab</td>
+        <td class="num ">3045</td>
+        <td class="num ">0</td>
+        <td class="num ">0</td>
+        <td><span class="badge ok">정상</span></td>
+      </tr>
+      <tr class="">
+        <td><span class="badge ok">200</span></td>
+        <td class="url"><a href="https://ezlab.im/en/tool/ezcapture" target="_blank" rel="noopener" title="https://ezlab.im/en/tool/ezcapture">https://ezlab.im/en/tool/ezcapture</a></td>
+        <td>ezCapture | ezLab</td>
+        <td class="num ">2439</td>
+        <td class="num ">0</td>
+        <td class="num ">0</td>
+        <td><span class="badge ok">정상</span></td>
+      </tr>
+      <tr class="">
+        <td><span class="badge ok">200</span></td>
+        <td class="url"><a href="https://ezlab.im/en/tool/ezzip" target="_blank" rel="noopener" title="https://ezlab.im/en/tool/ezzip">https://ezlab.im/en/tool/ezzip</a></td>
+        <td>ezZip | ezLab</td>
+        <td class="num ">2363</td>
+        <td class="num ">0</td>
+        <td class="num ">0</td>
+        <td><span class="badge ok">정상</span></td>
+      </tr>
+      <tr class="">
+        <td><span class="badge ok">200</span></td>
+        <td class="url"><a href="https://ezlab.im/en/tool/ezfinder" target="_blank" rel="noopener" title="https://ezlab.im/en/tool/ezfinder">https://ezlab.im/en/tool/ezfinder</a></td>
+        <td>ezFinder | ezLab</td>
+        <td class="num ">2917</td>
+        <td class="num ">0</td>
+        <td class="num ">0</td>
+        <td><span class="badge ok">정상</span></td>
+      </tr>
+      <tr class="">
+        <td><span class="badge ok">200</span></td>
+        <td class="url"><a href="https://ezlab.im/en/tool/ezmemo" target="_blank" rel="noopener" title="https://ezlab.im/en/tool/ezmemo">https://ezlab.im/en/tool/ezmemo</a></td>
+        <td>ezMemo | ezLab</td>
+        <td class="num ">2633</td>
+        <td class="num ">0</td>
+        <td class="num ">0</td>
+        <td><span class="badge ok">정상</span></td>
+      </tr>
+      <tr class="">
+        <td><span class="badge ok">200</span></td>
+        <td class="url"><a href="https://ezlab.im/en/tool/ezcam" target="_blank" rel="noopener" title="https://ezlab.im/en/tool/ezcam">https://ezlab.im/en/tool/ezcam</a></td>
+        <td>ezCam | ezLab</td>
+        <td class="num ">2430</td>
+        <td class="num ">0</td>
+        <td class="num ">0</td>
+        <td><span class="badge ok">정상</span></td>
+      </tr>
+      <tr class="">
+        <td><span class="badge ok">200</span></td>
+        <td class="url"><a href="https://ezlab.im/en/tool/ezdown" target="_blank" rel="noopener" title="https://ezlab.im/en/tool/ezdown">https://ezlab.im/en/tool/ezdown</a></td>
+        <td>ezDown | ezLab</td>
+        <td class="num ">2967</td>
+        <td class="num ">0</td>
+        <td class="num ">0</td>
+        <td><span class="badge ok">정상</span></td>
+      </tr>
+      <tr class="">
+        <td><span class="badge ok">200</span></td>
+        <td class="url"><a href="https://ezlab.im/en/tool/eznote" target="_blank" rel="noopener" title="https://ezlab.im/en/tool/eznote">https://ezlab.im/en/tool/eznote</a></td>
+        <td>ezNote(Beta) | ezLab</td>
+        <td class="num ">2330</td>
+        <td class="num ">0</td>
+        <td class="num ">0</td>
+        <td><span class="badge ok">정상</span></td>
+      </tr>
+      <tr class="">
+        <td><span class="badge ok">200</span></td>
+        <td class="url"><a href="https://ezlab.im/en/tool/ezmanager" target="_blank" rel="noopener" title="https://ezlab.im/en/tool/ezmanager">https://ezlab.im/en/tool/ezmanager</a></td>
+        <td>ezManager | ezLab</td>
+        <td class="num ">2395</td>
+        <td class="num ">0</td>
+        <td class="num ">0</td>
+        <td><span class="badge ok">정상</span></td>
+      </tr>
+      <tr class="">
+        <td><span class="badge ok">200</span></td>
+        <td class="url"><a href="https://ezlab.im/en/contact/notice" target="_blank" rel="noopener" title="https://ezlab.im/en/contact/notice">https://ezlab.im/en/contact/notice</a></td>
+        <td>Notices | ezLab</td>
+        <td class="num ">3171</td>
+        <td class="num ">0</td>
+        <td class="num ">0</td>
+        <td><span class="badge ok">정상</span></td>
+      </tr>
+      <tr class="">
+        <td><span class="badge ok">200</span></td>
+        <td class="url"><a href="https://ezlab.im/en/contact/faq" target="_blank" rel="noopener" title="https://ezlab.im/en/contact/faq">https://ezlab.im/en/contact/faq</a></td>
+        <td>FAQ | ezLab</td>
+        <td class="num ">2449</td>
+        <td class="num ">0</td>
+        <td class="num ">0</td>
+        <td><span class="badge ok">정상</span></td>
+      </tr>
+      <tr class="">
+        <td><span class="badge ok">200</span></td>
+        <td class="url"><a href="https://ezlab.im/en/contact/inquiry" target="_blank" rel="noopener" title="https://ezlab.im/en/contact/inquiry">https://ezlab.im/en/contact/inquiry</a></td>
+        <td>1:1 Inquiry | ezLab</td>
+        <td class="num ">2636</td>
+        <td class="num ">0</td>
+        <td class="num ">0</td>
+        <td><span class="badge ok">정상</span></td>
+      </tr>
+      <tr class="">
+        <td><span class="badge ok">200</span></td>
+        <td class="url"><a href="https://ezlab.im/en/contact/review" target="_blank" rel="noopener" title="https://ezlab.im/en/contact/review">https://ezlab.im/en/contact/review</a></td>
+        <td>User Reviews | ezLab</td>
+        <td class="num ">2721</td>
+        <td class="num ">0</td>
+        <td class="num ">0</td>
+        <td><span class="badge ok">정상</span></td>
+      </tr></tbody></table></div>
+  </details>
+  
+  <details id="sec-links" open>
+    <summary><span class="sum-title">🔗 링크</span>
+      <span class="sum-meta">112건 · <span class="ng-text">문제 3</span> ▾</span>
+    </summary>
+    <div class="scroll"><table><thead><tr><th>상태</th><th>구분</th><th>URL</th><th>발견 위치</th></tr></thead><tbody>
+      <tr class="row-bad">
+        <td><span class="badge ng">429</span></td>
+        <td><span class="badge muted">외부</span></td>
+        <td class="url"><a href="https://www.instagram.com/ezlab_official/" target="_blank" rel="noopener" title="https://www.instagram.com/ezlab_official/">https://www.instagram.com/ezlab_official/</a></td>
+        <td class="url"><a href="https://ezlab.im/ko/event/branding" target="_blank" rel="noopener" class="muted" title="https://ezlab.im/ko/event/branding">https://ezlab.im/ko/event/branding</a></td>
+      </tr>
+      <tr class="row-bad">
+        <td><span class="badge ng">ERR</span></td>
+        <td><span class="badge muted">외부</span></td>
+        <td class="url"><a href="https://privacy.kisa.or.kr/" target="_blank" rel="noopener" title="https://privacy.kisa.or.kr/">https://privacy.kisa.or.kr/</a></td>
+        <td class="url"><a href="https://ezlab.im/ko/term/38" target="_blank" rel="noopener" class="muted" title="https://ezlab.im/ko/term/38">https://ezlab.im/ko/term/38</a></td>
+      </tr>
+      <tr class="row-bad">
+        <td><span class="badge ng">404</span></td>
+        <td><span class="badge muted">외부</span></td>
+        <td class="url"><a href="https://ecrm.police.go.kr/" target="_blank" rel="noopener" title="https://ecrm.police.go.kr/">https://ecrm.police.go.kr/</a></td>
+        <td class="url"><a href="https://ezlab.im/ko/term/38" target="_blank" rel="noopener" class="muted" title="https://ezlab.im/ko/term/38">https://ezlab.im/ko/term/38</a></td>
+      </tr>
+      <tr class="">
+        <td><span class="badge ok">200</span></td>
+        <td><span class="badge warn">내부</span></td>
+        <td class="url"><a href="https://ezlab.im/ko" target="_blank" rel="noopener" title="https://ezlab.im/ko">https://ezlab.im/ko</a></td>
+        <td class="url"><a href="https://ezlab.im/ko" target="_blank" rel="noopener" class="muted" title="https://ezlab.im/ko">https://ezlab.im/ko</a><span class="muted"> 외 24</span></td>
+      </tr>
+      <tr class="">
+        <td><span class="badge ok">200</span></td>
+        <td><span class="badge warn">내부</span></td>
+        <td class="url"><a href="https://ezlab.im/ko/tool/ezcapture" target="_blank" rel="noopener" title="https://ezlab.im/ko/tool/ezcapture">https://ezlab.im/ko/tool/ezcapture</a></td>
+        <td class="url"><a href="https://ezlab.im/ko" target="_blank" rel="noopener" class="muted" title="https://ezlab.im/ko">https://ezlab.im/ko</a><span class="muted"> 외 22</span></td>
+      </tr>
+      <tr class="">
+        <td><span class="badge ok">200</span></td>
+        <td><span class="badge warn">내부</span></td>
+        <td class="url"><a href="https://ezlab.im/ko/tool/ezzip" target="_blank" rel="noopener" title="https://ezlab.im/ko/tool/ezzip">https://ezlab.im/ko/tool/ezzip</a></td>
+        <td class="url"><a href="https://ezlab.im/ko" target="_blank" rel="noopener" class="muted" title="https://ezlab.im/ko">https://ezlab.im/ko</a><span class="muted"> 외 22</span></td>
+      </tr>
+      <tr class="">
+        <td><span class="badge ok">200</span></td>
+        <td><span class="badge warn">내부</span></td>
+        <td class="url"><a href="https://ezlab.im/ko/tool/ezfinder" target="_blank" rel="noopener" title="https://ezlab.im/ko/tool/ezfinder">https://ezlab.im/ko/tool/ezfinder</a></td>
+        <td class="url"><a href="https://ezlab.im/ko" target="_blank" rel="noopener" class="muted" title="https://ezlab.im/ko">https://ezlab.im/ko</a><span class="muted"> 외 22</span></td>
+      </tr>
+      <tr class="">
+        <td><span class="badge ok">200</span></td>
+        <td><span class="badge warn">내부</span></td>
+        <td class="url"><a href="https://ezlab.im/ko/tool/ezmemo" target="_blank" rel="noopener" title="https://ezlab.im/ko/tool/ezmemo">https://ezlab.im/ko/tool/ezmemo</a></td>
+        <td class="url"><a href="https://ezlab.im/ko" target="_blank" rel="noopener" class="muted" title="https://ezlab.im/ko">https://ezlab.im/ko</a><span class="muted"> 외 22</span></td>
+      </tr>
+      <tr class="">
+        <td><span class="badge ok">200</span></td>
+        <td><span class="badge warn">내부</span></td>
+        <td class="url"><a href="https://ezlab.im/ko/tool/ezcam" target="_blank" rel="noopener" title="https://ezlab.im/ko/tool/ezcam">https://ezlab.im/ko/tool/ezcam</a></td>
+        <td class="url"><a href="https://ezlab.im/ko" target="_blank" rel="noopener" class="muted" title="https://ezlab.im/ko">https://ezlab.im/ko</a><span class="muted"> 외 22</span></td>
+      </tr>
+      <tr class="">
+        <td><span class="badge ok">200</span></td>
+        <td><span class="badge warn">내부</span></td>
+        <td class="url"><a href="https://ezlab.im/ko/tool/ezdown" target="_blank" rel="noopener" title="https://ezlab.im/ko/tool/ezdown">https://ezlab.im/ko/tool/ezdown</a></td>
+        <td class="url"><a href="https://ezlab.im/ko" target="_blank" rel="noopener" class="muted" title="https://ezlab.im/ko">https://ezlab.im/ko</a><span class="muted"> 외 22</span></td>
+      </tr>
+      <tr class="">
+        <td><span class="badge ok">200</span></td>
+        <td><span class="badge warn">내부</span></td>
+        <td class="url"><a href="https://ezlab.im/ko/tool/eznote" target="_blank" rel="noopener" title="https://ezlab.im/ko/tool/eznote">https://ezlab.im/ko/tool/eznote</a></td>
+        <td class="url"><a href="https://ezlab.im/ko" target="_blank" rel="noopener" class="muted" title="https://ezlab.im/ko">https://ezlab.im/ko</a><span class="muted"> 외 22</span></td>
+      </tr>
+      <tr class="">
+        <td><span class="badge ok">200</span></td>
+        <td><span class="badge warn">내부</span></td>
+        <td class="url"><a href="https://ezlab.im/ko/tool/ezmanager" target="_blank" rel="noopener" title="https://ezlab.im/ko/tool/ezmanager">https://ezlab.im/ko/tool/ezmanager</a></td>
+        <td class="url"><a href="https://ezlab.im/ko" target="_blank" rel="noopener" class="muted" title="https://ezlab.im/ko">https://ezlab.im/ko</a><span class="muted"> 외 22</span></td>
+      </tr>
+      <tr class="">
+        <td><span class="badge ok">200</span></td>
+        <td><span class="badge warn">내부</span></td>
+        <td class="url"><a href="https://ezlab.im/ko/contact/notice" target="_blank" rel="noopener" title="https://ezlab.im/ko/contact/notice">https://ezlab.im/ko/contact/notice</a></td>
+        <td class="url"><a href="https://ezlab.im/ko" target="_blank" rel="noopener" class="muted" title="https://ezlab.im/ko">https://ezlab.im/ko</a><span class="muted"> 외 22</span></td>
+      </tr>
+      <tr class="">
+        <td><span class="badge ok">200</span></td>
+        <td><span class="badge warn">내부</span></td>
+        <td class="url"><a href="https://ezlab.im/ko/contact/faq" target="_blank" rel="noopener" title="https://ezlab.im/ko/contact/faq">https://ezlab.im/ko/contact/faq</a></td>
+        <td class="url"><a href="https://ezlab.im/ko" target="_blank" rel="noopener" class="muted" title="https://ezlab.im/ko">https://ezlab.im/ko</a><span class="muted"> 외 21</span></td>
+      </tr>
+      <tr class="">
+        <td><span class="badge ok">200</span></td>
+        <td><span class="badge warn">내부</span></td>
+        <td class="url"><a href="https://ezlab.im/ko/contact/inquiry" target="_blank" rel="noopener" title="https://ezlab.im/ko/contact/inquiry">https://ezlab.im/ko/contact/inquiry</a></td>
+        <td class="url"><a href="https://ezlab.im/ko" target="_blank" rel="noopener" class="muted" title="https://ezlab.im/ko">https://ezlab.im/ko</a><span class="muted"> 외 21</span></td>
+      </tr>
+      <tr class="">
+        <td><span class="badge ok">200</span></td>
+        <td><span class="badge warn">내부</span></td>
+        <td class="url"><a href="https://ezlab.im/ko/contact/review" target="_blank" rel="noopener" title="https://ezlab.im/ko/contact/review">https://ezlab.im/ko/contact/review</a></td>
+        <td class="url"><a href="https://ezlab.im/ko" target="_blank" rel="noopener" class="muted" title="https://ezlab.im/ko">https://ezlab.im/ko</a><span class="muted"> 외 21</span></td>
+      </tr>
+      <tr class="">
+        <td><span class="badge ok">200</span></td>
+        <td><span class="badge warn">내부</span></td>
+        <td class="url"><a href="https://ezlab.im/ko/login?callbackUrl=%2Fpoint" target="_blank" rel="noopener" title="https://ezlab.im/ko/login?callbackUrl=%2Fpoint">https://ezlab.im/ko/login?callbackUrl=%2Fpoint</a></td>
+        <td class="url"><a href="https://ezlab.im/ko" target="_blank" rel="noopener" class="muted" title="https://ezlab.im/ko">https://ezlab.im/ko</a><span class="muted"> 외 21</span></td>
+      </tr>
+      <tr class="">
+        <td><span class="badge ok">200</span></td>
+        <td><span class="badge warn">내부</span></td>
+        <td class="url"><a href="https://ezlab.im/ko/login?callbackUrl=%2Fmypage" target="_blank" rel="noopener" title="https://ezlab.im/ko/login?callbackUrl=%2Fmypage">https://ezlab.im/ko/login?callbackUrl=%2Fmypage</a></td>
+        <td class="url"><a href="https://ezlab.im/ko" target="_blank" rel="noopener" class="muted" title="https://ezlab.im/ko">https://ezlab.im/ko</a><span class="muted"> 외 21</span></td>
+      </tr>
+      <tr class="">
+        <td><span class="badge ok">200</span></td>
+        <td><span class="badge warn">내부</span></td>
+        <td class="url"><a href="https://ezlab.im/ko/event/branding" target="_blank" rel="noopener" title="https://ezlab.im/ko/event/branding">https://ezlab.im/ko/event/branding</a></td>
+        <td class="url"><a href="https://ezlab.im/ko" target="_blank" rel="noopener" class="muted" title="https://ezlab.im/ko">https://ezlab.im/ko</a></td>
+      </tr>
+      <tr class="">
+        <td><span class="badge ok">200</span></td>
+        <td><span class="badge warn">내부</span></td>
+        <td class="url"><a href="https://ezlab.im/tool/ezcapture" target="_blank" rel="noopener" title="https://ezlab.im/tool/ezcapture">https://ezlab.im/tool/ezcapture</a></td>
+        <td class="url"><a href="https://ezlab.im/ko" target="_blank" rel="noopener" class="muted" title="https://ezlab.im/ko">https://ezlab.im/ko</a><span class="muted"> 외 3</span></td>
+      </tr>
+      <tr class="">
+        <td><span class="badge ok">200</span></td>
+        <td><span class="badge warn">내부</span></td>
+        <td class="url"><a href="https://ezlab.im/tool/ezzip" target="_blank" rel="noopener" title="https://ezlab.im/tool/ezzip">https://ezlab.im/tool/ezzip</a></td>
+        <td class="url"><a href="https://ezlab.im/ko" target="_blank" rel="noopener" class="muted" title="https://ezlab.im/ko">https://ezlab.im/ko</a><span class="muted"> 외 3</span></td>
+      </tr>
+      <tr class="">
+        <td><span class="badge ok">200</span></td>
+        <td><span class="badge warn">내부</span></td>
+        <td class="url"><a href="https://ezlab.im/tool/ezfinder" target="_blank" rel="noopener" title="https://ezlab.im/tool/ezfinder">https://ezlab.im/tool/ezfinder</a></td>
+        <td class="url"><a href="https://ezlab.im/ko" target="_blank" rel="noopener" class="muted" title="https://ezlab.im/ko">https://ezlab.im/ko</a><span class="muted"> 외 3</span></td>
+      </tr>
+      <tr class="">
+        <td><span class="badge ok">200</span></td>
+        <td><span class="badge warn">내부</span></td>
+        <td class="url"><a href="https://ezlab.im/tool/ezmemo" target="_blank" rel="noopener" title="https://ezlab.im/tool/ezmemo">https://ezlab.im/tool/ezmemo</a></td>
+        <td class="url"><a href="https://ezlab.im/ko" target="_blank" rel="noopener" class="muted" title="https://ezlab.im/ko">https://ezlab.im/ko</a><span class="muted"> 외 3</span></td>
+      </tr><tr><td colspan="9" class="more">… 정상 89건 더 있음 (전체는 JSON 참조)</td></tr></tbody></table></div>
+  </details>
+  
+  <details id="sec-images" open>
+    <summary><span class="sum-title">🖼️ 이미지</span>
+      <span class="sum-meta">1868건 · <span class="ng-text">문제 2</span> ▾</span>
+    </summary>
+    <div class="scroll"><table><thead><tr><th>상태</th><th>이미지 URL</th><th>발견 위치</th></tr></thead><tbody>
+      <tr class="row-bad">
+        <td><span class="badge ng">404</span></td>
+        <td class="url"><a href="https://act.ds.kakao.com/match?d=111&amp;uid=26685637.1793132743304" target="_blank" rel="noopener" title="https://act.ds.kakao.com/match?d=111&amp;uid=26685637.1793132743304">https://act.ds.kakao.com/match?d=111&amp;uid=26685637.1793132743304</a></td>
+        <td class="url"><a href="https://ezlab.im/ko" target="_blank" rel="noopener" class="muted" title="https://ezlab.im/ko">https://ezlab.im/ko</a></td>
+      </tr>
+      <tr class="row-bad">
+        <td><span class="badge ng">ERR</span></td>
+        <td class="url"><a href="https://dable-api.scupio.com/dable/v1/exc/?did=26685637.1793132743304" target="_blank" rel="noopener" title="https://dable-api.scupio.com/dable/v1/exc/?did=26685637.1793132743304">https://dable-api.scupio.com/dable/v1/exc/?did=26685637.1793132743304</a></td>
+        <td class="url"><a href="https://ezlab.im/ko" target="_blank" rel="noopener" class="muted" title="https://ezlab.im/ko">https://ezlab.im/ko</a></td>
+      </tr>
+      <tr class="">
+        <td><span class="badge ok">200</span></td>
+        <td class="url"><a href="https://ezlab.im/_next/image?url=https%3A%2F%2Fcdn.ezlab.im%2Fassets%2Fimages%2Flogo%2Fezlab.png&amp;w=32&amp;q=75" target="_blank" rel="noopener" title="https://ezlab.im/_next/image?url=https%3A%2F%2Fcdn.ezlab.im%2Fassets%2Fimages%2Flogo%2Fezlab.png&amp;w=32&amp;q=75">https://ezlab.im/_next/image?url=https%3A%2F%2Fcdn.ezlab.im%2Fassets%…</a></td>
+        <td class="url"><a href="https://ezlab.im/ko" target="_blank" rel="noopener" class="muted" title="https://ezlab.im/ko">https://ezlab.im/ko</a><span class="muted"> 외 38</span></td>
+      </tr>
+      <tr class="">
+        <td><span class="badge ok">200</span></td>
+        <td class="url"><a href="https://ezlab.im/_next/image?url=https%3A%2F%2Fcdn.ezlab.im%2Fassets%2Fimages%2Flogo%2Fezlab.png&amp;w=48&amp;q=75" target="_blank" rel="noopener" title="https://ezlab.im/_next/image?url=https%3A%2F%2Fcdn.ezlab.im%2Fassets%2Fimages%2Flogo%2Fezlab.png&amp;w=48&amp;q=75">https://ezlab.im/_next/image?url=https%3A%2F%2Fcdn.ezlab.im%2Fassets%…</a></td>
+        <td class="url"><a href="https://ezlab.im/ko" target="_blank" rel="noopener" class="muted" title="https://ezlab.im/ko">https://ezlab.im/ko</a><span class="muted"> 외 38</span></td>
+      </tr>
+      <tr class="">
+        <td><span class="badge ok">200</span></td>
+        <td class="url"><a href="https://ezlab.im/_next/image?url=https%3A%2F%2Fcdn.ezlab.im%2Fassets%2Fimages%2Flogo%2Fezcapture.png&amp;w=48&amp;q=75" target="_blank" rel="noopener" title="https://ezlab.im/_next/image?url=https%3A%2F%2Fcdn.ezlab.im%2Fassets%2Fimages%2Flogo%2Fezcapture.png&amp;w=48&amp;q=75">https://ezlab.im/_next/image?url=https%3A%2F%2Fcdn.ezlab.im%2Fassets%…</a></td>
+        <td class="url"><a href="https://ezlab.im/ko" target="_blank" rel="noopener" class="muted" title="https://ezlab.im/ko">https://ezlab.im/ko</a><span class="muted"> 외 37</span></td>
+      </tr>
+      <tr class="">
+        <td><span class="badge ok">200</span></td>
+        <td class="url"><a href="https://ezlab.im/_next/image?url=https%3A%2F%2Fcdn.ezlab.im%2Fassets%2Fimages%2Flogo%2Fezcapture.png&amp;w=96&amp;q=75" target="_blank" rel="noopener" title="https://ezlab.im/_next/image?url=https%3A%2F%2Fcdn.ezlab.im%2Fassets%2Fimages%2Flogo%2Fezcapture.png&amp;w=96&amp;q=75">https://ezlab.im/_next/image?url=https%3A%2F%2Fcdn.ezlab.im%2Fassets%…</a></td>
+        <td class="url"><a href="https://ezlab.im/ko" target="_blank" rel="noopener" class="muted" title="https://ezlab.im/ko">https://ezlab.im/ko</a><span class="muted"> 외 37</span></td>
+      </tr>
+      <tr class="">
+        <td><span class="badge ok">200</span></td>
+        <td class="url"><a href="https://ezlab.im/_next/image?url=https%3A%2F%2Fcdn.ezlab.im%2Fassets%2Fimages%2Flogo%2Fezzip.png&amp;w=48&amp;q=75" target="_blank" rel="noopener" title="https://ezlab.im/_next/image?url=https%3A%2F%2Fcdn.ezlab.im%2Fassets%2Fimages%2Flogo%2Fezzip.png&amp;w=48&amp;q=75">https://ezlab.im/_next/image?url=https%3A%2F%2Fcdn.ezlab.im%2Fassets%…</a></td>
+        <td class="url"><a href="https://ezlab.im/ko" target="_blank" rel="noopener" class="muted" title="https://ezlab.im/ko">https://ezlab.im/ko</a><span class="muted"> 외 37</span></td>
+      </tr>
+      <tr class="">
+        <td><span class="badge ok">200</span></td>
+        <td class="url"><a href="https://ezlab.im/_next/image?url=https%3A%2F%2Fcdn.ezlab.im%2Fassets%2Fimages%2Flogo%2Fezzip.png&amp;w=96&amp;q=75" target="_blank" rel="noopener" title="https://ezlab.im/_next/image?url=https%3A%2F%2Fcdn.ezlab.im%2Fassets%2Fimages%2Flogo%2Fezzip.png&amp;w=96&amp;q=75">https://ezlab.im/_next/image?url=https%3A%2F%2Fcdn.ezlab.im%2Fassets%…</a></td>
+        <td class="url"><a href="https://ezlab.im/ko" target="_blank" rel="noopener" class="muted" title="https://ezlab.im/ko">https://ezlab.im/ko</a><span class="muted"> 외 37</span></td>
+      </tr>
+      <tr class="">
+        <td><span class="badge ok">200</span></td>
+        <td class="url"><a href="https://ezlab.im/_next/image?url=https%3A%2F%2Fcdn.ezlab.im%2Fassets%2Fimages%2Flogo%2Fezfinder.png&amp;w=48&amp;q=75" target="_blank" rel="noopener" title="https://ezlab.im/_next/image?url=https%3A%2F%2Fcdn.ezlab.im%2Fassets%2Fimages%2Flogo%2Fezfinder.png&amp;w=48&amp;q=75">https://ezlab.im/_next/image?url=https%3A%2F%2Fcdn.ezlab.im%2Fassets%…</a></td>
+        <td class="url"><a href="https://ezlab.im/ko" target="_blank" rel="noopener" class="muted" title="https://ezlab.im/ko">https://ezlab.im/ko</a><span class="muted"> 외 37</span></td>
+      </tr>
+      <tr class="">
+        <td><span class="badge ok">200</span></td>
+        <td class="url"><a href="https://ezlab.im/_next/image?url=https%3A%2F%2Fcdn.ezlab.im%2Fassets%2Fimages%2Flogo%2Fezfinder.png&amp;w=96&amp;q=75" target="_blank" rel="noopener" title="https://ezlab.im/_next/image?url=https%3A%2F%2Fcdn.ezlab.im%2Fassets%2Fimages%2Flogo%2Fezfinder.png&amp;w=96&amp;q=75">https://ezlab.im/_next/image?url=https%3A%2F%2Fcdn.ezlab.im%2Fassets%…</a></td>
+        <td class="url"><a href="https://ezlab.im/ko" target="_blank" rel="noopener" class="muted" title="https://ezlab.im/ko">https://ezlab.im/ko</a><span class="muted"> 외 37</span></td>
+      </tr>
+      <tr class="">
+        <td><span class="badge ok">200</span></td>
+        <td class="url"><a href="https://ezlab.im/_next/image?url=https%3A%2F%2Fcdn.ezlab.im%2Fassets%2Fimages%2Flogo%2Fezmemo.png&amp;w=48&amp;q=75" target="_blank" rel="noopener" title="https://ezlab.im/_next/image?url=https%3A%2F%2Fcdn.ezlab.im%2Fassets%2Fimages%2Flogo%2Fezmemo.png&amp;w=48&amp;q=75">https://ezlab.im/_next/image?url=https%3A%2F%2Fcdn.ezlab.im%2Fassets%…</a></td>
+        <td class="url"><a href="https://ezlab.im/ko" target="_blank" rel="noopener" class="muted" title="https://ezlab.im/ko">https://ezlab.im/ko</a><span class="muted"> 외 37</span></td>
+      </tr>
+      <tr class="">
+        <td><span class="badge ok">200</span></td>
+        <td class="url"><a href="https://ezlab.im/_next/image?url=https%3A%2F%2Fcdn.ezlab.im%2Fassets%2Fimages%2Flogo%2Fezmemo.png&amp;w=96&amp;q=75" target="_blank" rel="noopener" title="https://ezlab.im/_next/image?url=https%3A%2F%2Fcdn.ezlab.im%2Fassets%2Fimages%2Flogo%2Fezmemo.png&amp;w=96&amp;q=75">https://ezlab.im/_next/image?url=https%3A%2F%2Fcdn.ezlab.im%2Fassets%…</a></td>
+        <td class="url"><a href="https://ezlab.im/ko" target="_blank" rel="noopener" class="muted" title="https://ezlab.im/ko">https://ezlab.im/ko</a><span class="muted"> 외 37</span></td>
+      </tr>
+      <tr class="">
+        <td><span class="badge ok">200</span></td>
+        <td class="url"><a href="https://ezlab.im/_next/image?url=https%3A%2F%2Fcdn.ezlab.im%2Fassets%2Fimages%2Flogo%2Fezcam.png&amp;w=48&amp;q=75" target="_blank" rel="noopener" title="https://ezlab.im/_next/image?url=https%3A%2F%2Fcdn.ezlab.im%2Fassets%2Fimages%2Flogo%2Fezcam.png&amp;w=48&amp;q=75">https://ezlab.im/_next/image?url=https%3A%2F%2Fcdn.ezlab.im%2Fassets%…</a></td>
+        <td class="url"><a href="https://ezlab.im/ko" target="_blank" rel="noopener" class="muted" title="https://ezlab.im/ko">https://ezlab.im/ko</a><span class="muted"> 외 37</span></td>
+      </tr>
+      <tr class="">
+        <td><span class="badge ok">200</span></td>
+        <td class="url"><a href="https://ezlab.im/_next/image?url=https%3A%2F%2Fcdn.ezlab.im%2Fassets%2Fimages%2Flogo%2Fezcam.png&amp;w=96&amp;q=75" target="_blank" rel="noopener" title="https://ezlab.im/_next/image?url=https%3A%2F%2Fcdn.ezlab.im%2Fassets%2Fimages%2Flogo%2Fezcam.png&amp;w=96&amp;q=75">https://ezlab.im/_next/image?url=https%3A%2F%2Fcdn.ezlab.im%2Fassets%…</a></td>
+        <td class="url"><a href="https://ezlab.im/ko" target="_blank" rel="noopener" class="muted" title="https://ezlab.im/ko">https://ezlab.im/ko</a><span class="muted"> 외 37</span></td>
+      </tr>
+      <tr class="">
+        <td><span class="badge ok">200</span></td>
+        <td class="url"><a href="https://ezlab.im/_next/image?url=https%3A%2F%2Fcdn.ezlab.im%2Fassets%2Fimages%2Flogo%2Fezdown.png&amp;w=48&amp;q=75" target="_blank" rel="noopener" title="https://ezlab.im/_next/image?url=https%3A%2F%2Fcdn.ezlab.im%2Fassets%2Fimages%2Flogo%2Fezdown.png&amp;w=48&amp;q=75">https://ezlab.im/_next/image?url=https%3A%2F%2Fcdn.ezlab.im%2Fassets%…</a></td>
+        <td class="url"><a href="https://ezlab.im/ko" target="_blank" rel="noopener" class="muted" title="https://ezlab.im/ko">https://ezlab.im/ko</a><span class="muted"> 외 37</span></td>
+      </tr>
+      <tr class="">
+        <td><span class="badge ok">200</span></td>
+        <td class="url"><a href="https://ezlab.im/_next/image?url=https%3A%2F%2Fcdn.ezlab.im%2Fassets%2Fimages%2Flogo%2Fezdown.png&amp;w=96&amp;q=75" target="_blank" rel="noopener" title="https://ezlab.im/_next/image?url=https%3A%2F%2Fcdn.ezlab.im%2Fassets%2Fimages%2Flogo%2Fezdown.png&amp;w=96&amp;q=75">https://ezlab.im/_next/image?url=https%3A%2F%2Fcdn.ezlab.im%2Fassets%…</a></td>
+        <td class="url"><a href="https://ezlab.im/ko" target="_blank" rel="noopener" class="muted" title="https://ezlab.im/ko">https://ezlab.im/ko</a><span class="muted"> 외 37</span></td>
+      </tr>
+      <tr class="">
+        <td><span class="badge ok">200</span></td>
+        <td class="url"><a href="https://ezlab.im/_next/image?url=https%3A%2F%2Fcdn.ezlab.im%2Fassets%2Fimages%2Flogo%2Feznote.png&amp;w=48&amp;q=75" target="_blank" rel="noopener" title="https://ezlab.im/_next/image?url=https%3A%2F%2Fcdn.ezlab.im%2Fassets%2Fimages%2Flogo%2Feznote.png&amp;w=48&amp;q=75">https://ezlab.im/_next/image?url=https%3A%2F%2Fcdn.ezlab.im%2Fassets%…</a></td>
+        <td class="url"><a href="https://ezlab.im/ko" target="_blank" rel="noopener" class="muted" title="https://ezlab.im/ko">https://ezlab.im/ko</a><span class="muted"> 외 37</span></td>
+      </tr>
+      <tr class="">
+        <td><span class="badge ok">200</span></td>
+        <td class="url"><a href="https://ezlab.im/_next/image?url=https%3A%2F%2Fcdn.ezlab.im%2Fassets%2Fimages%2Flogo%2Feznote.png&amp;w=96&amp;q=75" target="_blank" rel="noopener" title="https://ezlab.im/_next/image?url=https%3A%2F%2Fcdn.ezlab.im%2Fassets%2Fimages%2Flogo%2Feznote.png&amp;w=96&amp;q=75">https://ezlab.im/_next/image?url=https%3A%2F%2Fcdn.ezlab.im%2Fassets%…</a></td>
+        <td class="url"><a href="https://ezlab.im/ko" target="_blank" rel="noopener" class="muted" title="https://ezlab.im/ko">https://ezlab.im/ko</a><span class="muted"> 외 37</span></td>
+      </tr>
+      <tr class="">
+        <td><span class="badge ok">200</span></td>
+        <td class="url"><a href="https://ezlab.im/_next/image?url=https%3A%2F%2Fcdn.ezlab.im%2Fassets%2Fimages%2Flogo%2Fezmanager.png&amp;w=48&amp;q=75" target="_blank" rel="noopener" title="https://ezlab.im/_next/image?url=https%3A%2F%2Fcdn.ezlab.im%2Fassets%2Fimages%2Flogo%2Fezmanager.png&amp;w=48&amp;q=75">https://ezlab.im/_next/image?url=https%3A%2F%2Fcdn.ezlab.im%2Fassets%…</a></td>
+        <td class="url"><a href="https://ezlab.im/ko" target="_blank" rel="noopener" class="muted" title="https://ezlab.im/ko">https://ezlab.im/ko</a><span class="muted"> 외 37</span></td>
+      </tr>
+      <tr class="">
+        <td><span class="badge ok">200</span></td>
+        <td class="url"><a href="https://ezlab.im/_next/image?url=https%3A%2F%2Fcdn.ezlab.im%2Fassets%2Fimages%2Flogo%2Fezmanager.png&amp;w=96&amp;q=75" target="_blank" rel="noopener" title="https://ezlab.im/_next/image?url=https%3A%2F%2Fcdn.ezlab.im%2Fassets%2Fimages%2Flogo%2Fezmanager.png&amp;w=96&amp;q=75">https://ezlab.im/_next/image?url=https%3A%2F%2Fcdn.ezlab.im%2Fassets%…</a></td>
+        <td class="url"><a href="https://ezlab.im/ko" target="_blank" rel="noopener" class="muted" title="https://ezlab.im/ko">https://ezlab.im/ko</a><span class="muted"> 외 37</span></td>
+      </tr>
+      <tr class="">
+        <td><span class="badge ok">200</span></td>
+        <td class="url"><a href="https://ezlab.im/_next/image?url=https%3A%2F%2Fcdn.mobsoft.net%2Fassets%2Fcampaigns%2F2026-10-ahnjumi%2Fimages%2Fhome%2Fhero_thumbnail.webp&amp;w=1920&amp;q=75" target="_blank" rel="noopener" title="https://ezlab.im/_next/image?url=https%3A%2F%2Fcdn.mobsoft.net%2Fassets%2Fcampaigns%2F2026-10-ahnjumi%2Fimages%2Fhome%2Fhero_thumbnail.webp&amp;w=1920&amp;q=75">https://ezlab.im/_next/image?url=https%3A%2F%2Fcdn.mobsoft.net%2Fasse…</a></td>
+        <td class="url"><a href="https://ezlab.im/ko" target="_blank" rel="noopener" class="muted" title="https://ezlab.im/ko">https://ezlab.im/ko</a></td>
+      </tr>
+      <tr class="">
+        <td><span class="badge ok">200</span></td>
+        <td class="url"><a href="https://ezlab.im/_next/image?url=https%3A%2F%2Fcdn.mobsoft.net%2Fassets%2Fcampaigns%2F2026-10-ahnjumi%2Fimages%2Fhome%2Fhero_thumbnail.webp&amp;w=640&amp;q=75" target="_blank" rel="noopener" title="https://ezlab.im/_next/image?url=https%3A%2F%2Fcdn.mobsoft.net%2Fassets%2Fcampaigns%2F2026-10-ahnjumi%2Fimages%2Fhome%2Fhero_thumbnail.webp&amp;w=640&amp;q=75">https://ezlab.im/_next/image?url=https%3A%2F%2Fcdn.mobsoft.net%2Fasse…</a></td>
+        <td class="url"><a href="https://ezlab.im/ko" target="_blank" rel="noopener" class="muted" title="https://ezlab.im/ko">https://ezlab.im/ko</a></td>
+      </tr><tr><td colspan="9" class="more">… 정상 1846건 더 있음 (전체는 JSON 참조)</td></tr></tbody></table></div>
+  </details>
+  
+  <details id="sec-api">
+    <summary><span class="sum-title">🔌 API 검수 (자사 + 실패 외부)</span>
+      <span class="sum-meta">839건 · 정상 ▾</span>
+    </summary>
+    <div class="scroll"><table><thead><tr><th>상태</th><th>구분</th><th>메서드</th><th>엔드포인트</th><th>지연(ms)</th></tr></thead><tbody>
+      <tr class="">
+        <td><span class="badge ok">200</span></td>
+        <td><span class="badge ok">자사</span></td>
+        <td><code>GET</code></td>
+        <td class="url"><a href="https://ezlab.im/api/auth/me" target="_blank" rel="noopener" title="https://ezlab.im/api/auth/me">https://ezlab.im/api/auth/me</a></td>
+        <td class="num ">-</td>
+      </tr>
+      <tr class="">
+        <td><span class="badge ok">200</span></td>
+        <td><span class="badge ok">자사</span></td>
+        <td><code>GET</code></td>
+        <td class="url"><a href="https://ezlab.im/api/tools/info?locale=ko" target="_blank" rel="noopener" title="https://ezlab.im/api/tools/info?locale=ko">https://ezlab.im/api/tools/info?locale=ko</a></td>
+        <td class="num ">-</td>
+      </tr>
+      <tr class="">
+        <td><span class="badge ok">200</span></td>
+        <td><span class="badge ok">자사</span></td>
+        <td><code>POST</code></td>
+        <td class="url"><a href="https://ezlab.im/ko" target="_blank" rel="noopener" title="https://ezlab.im/ko">https://ezlab.im/ko</a></td>
+        <td class="num ">-</td>
+      </tr>
+      <tr class="">
+        <td><span class="badge ok">200</span></td>
+        <td><span class="badge ok">자사</span></td>
+        <td><code>GET</code></td>
+        <td class="url"><a href="https://ezlab.im/ko/contact/inquiry?_rsc=Q2QNahrvyMJbSvAi" target="_blank" rel="noopener" title="https://ezlab.im/ko/contact/inquiry?_rsc=Q2QNahrvyMJbSvAi">https://ezlab.im/ko/contact/inquiry?_rsc=Q2QNahrvyMJbSvAi</a></td>
+        <td class="num ">-</td>
+      </tr>
+      <tr class="">
+        <td><span class="badge ok">200</span></td>
+        <td><span class="badge ok">자사</span></td>
+        <td><code>GET</code></td>
+        <td class="url"><a href="https://ezlab.im/ko/contact/faq?_rsc=Q2QNahrvyMJbSvAi" target="_blank" rel="noopener" title="https://ezlab.im/ko/contact/faq?_rsc=Q2QNahrvyMJbSvAi">https://ezlab.im/ko/contact/faq?_rsc=Q2QNahrvyMJbSvAi</a></td>
+        <td class="num ">-</td>
+      </tr>
+      <tr class="">
+        <td><span class="badge ok">200</span></td>
+        <td><span class="badge ok">자사</span></td>
+        <td><code>GET</code></td>
+        <td class="url"><a href="https://ezlab.im/ko/contact/review?_rsc=Q2QNahrvyMJbSvAi" target="_blank" rel="noopener" title="https://ezlab.im/ko/contact/review?_rsc=Q2QNahrvyMJbSvAi">https://ezlab.im/ko/contact/review?_rsc=Q2QNahrvyMJbSvAi</a></td>
+        <td class="num ">-</td>
+      </tr>
+      <tr class="">
+        <td><span class="badge ok">200</span></td>
+        <td><span class="badge ok">자사</span></td>
+        <td><code>GET</code></td>
+        <td class="url"><a href="https://ezlab.im/ko/contact/notice?_rsc=Q2QNahrvyMJbSvAi" target="_blank" rel="noopener" title="https://ezlab.im/ko/contact/notice?_rsc=Q2QNahrvyMJbSvAi">https://ezlab.im/ko/contact/notice?_rsc=Q2QNahrvyMJbSvAi</a></td>
+        <td class="num ">-</td>
+      </tr>
+      <tr class="">
+        <td><span class="badge ok">200</span></td>
+        <td><span class="badge ok">자사</span></td>
+        <td><code>GET</code></td>
+        <td class="url"><a href="https://ezlab.im/ko/tool/ezcapture?_rsc=Q2QNahrvyMJbSvAi" target="_blank" rel="noopener" title="https://ezlab.im/ko/tool/ezcapture?_rsc=Q2QNahrvyMJbSvAi">https://ezlab.im/ko/tool/ezcapture?_rsc=Q2QNahrvyMJbSvAi</a></td>
+        <td class="num ">-</td>
+      </tr>
+      <tr class="">
+        <td><span class="badge ok">200</span></td>
+        <td><span class="badge ok">자사</span></td>
+        <td><code>GET</code></td>
+        <td class="url"><a href="https://ezlab.im/ko/tool/ezzip?_rsc=Q2QNahrvyMJbSvAi" target="_blank" rel="noopener" title="https://ezlab.im/ko/tool/ezzip?_rsc=Q2QNahrvyMJbSvAi">https://ezlab.im/ko/tool/ezzip?_rsc=Q2QNahrvyMJbSvAi</a></td>
+        <td class="num ">-</td>
+      </tr>
+      <tr class="">
+        <td><span class="badge ok">200</span></td>
+        <td><span class="badge ok">자사</span></td>
+        <td><code>GET</code></td>
+        <td class="url"><a href="https://ezlab.im/ko/tool/ezfinder?_rsc=Q2QNahrvyMJbSvAi" target="_blank" rel="noopener" title="https://ezlab.im/ko/tool/ezfinder?_rsc=Q2QNahrvyMJbSvAi">https://ezlab.im/ko/tool/ezfinder?_rsc=Q2QNahrvyMJbSvAi</a></td>
+        <td class="num ">-</td>
+      </tr>
+      <tr class="">
+        <td><span class="badge ok">200</span></td>
+        <td><span class="badge ok">자사</span></td>
+        <td><code>GET</code></td>
+        <td class="url"><a href="https://ezlab.im/ko/tool/ezmemo?_rsc=Q2QNahrvyMJbSvAi" target="_blank" rel="noopener" title="https://ezlab.im/ko/tool/ezmemo?_rsc=Q2QNahrvyMJbSvAi">https://ezlab.im/ko/tool/ezmemo?_rsc=Q2QNahrvyMJbSvAi</a></td>
+        <td class="num ">-</td>
+      </tr>
+      <tr class="">
+        <td><span class="badge ok">200</span></td>
+        <td><span class="badge ok">자사</span></td>
+        <td><code>GET</code></td>
+        <td class="url"><a href="https://ezlab.im/ko/login?callbackUrl=%2Fmypage&amp;_rsc=Q2QNahrvyMJbSvAi" target="_blank" rel="noopener" title="https://ezlab.im/ko/login?callbackUrl=%2Fmypage&amp;_rsc=Q2QNahrvyMJbSvAi">https://ezlab.im/ko/login?callbackUrl=%2Fmypage&amp;_rsc=Q2QNah…</a></td>
+        <td class="num ">-</td>
+      </tr>
+      <tr class="">
+        <td><span class="badge ok">200</span></td>
+        <td><span class="badge ok">자사</span></td>
+        <td><code>GET</code></td>
+        <td class="url"><a href="https://ezlab.im/ko/login?callbackUrl=%2Fpoint&amp;_rsc=Q2QNahrvyMJbSvAi" target="_blank" rel="noopener" title="https://ezlab.im/ko/login?callbackUrl=%2Fpoint&amp;_rsc=Q2QNahrvyMJbSvAi">https://ezlab.im/ko/login?callbackUrl=%2Fpoint&amp;_rsc=Q2QNahr…</a></td>
+        <td class="num ">-</td>
+      </tr>
+      <tr class="">
+        <td><span class="badge ok">200</span></td>
+        <td><span class="badge ok">자사</span></td>
+        <td><code>GET</code></td>
+        <td class="url"><a href="https://ezlab.im/ko/tool/ezzip?_rsc=j5t6Ei1OzF-EpOxR" target="_blank" rel="noopener" title="https://ezlab.im/ko/tool/ezzip?_rsc=j5t6Ei1OzF-EpOxR">https://ezlab.im/ko/tool/ezzip?_rsc=j5t6Ei1OzF-EpOxR</a></td>
+        <td class="num ">-</td>
+      </tr>
+      <tr class="">
+        <td><span class="badge ok">200</span></td>
+        <td><span class="badge ok">자사</span></td>
+        <td><code>GET</code></td>
+        <td class="url"><a href="https://ezlab.im/ko/tool/ezmemo?_rsc=j5t6Ei1OzF-EpOxR" target="_blank" rel="noopener" title="https://ezlab.im/ko/tool/ezmemo?_rsc=j5t6Ei1OzF-EpOxR">https://ezlab.im/ko/tool/ezmemo?_rsc=j5t6Ei1OzF-EpOxR</a></td>
+        <td class="num ">-</td>
+      </tr>
+      <tr class="">
+        <td><span class="badge ok">200</span></td>
+        <td><span class="badge ok">자사</span></td>
+        <td><code>GET</code></td>
+        <td class="url"><a href="https://ezlab.im/ko/tool/ezcapture?_rsc=j5t6Ei1OzF-EpOxR" target="_blank" rel="noopener" title="https://ezlab.im/ko/tool/ezcapture?_rsc=j5t6Ei1OzF-EpOxR">https://ezlab.im/ko/tool/ezcapture?_rsc=j5t6Ei1OzF-EpOxR</a></td>
+        <td class="num ">-</td>
+      </tr>
+      <tr class="">
+        <td><span class="badge ok">200</span></td>
+        <td><span class="badge ok">자사</span></td>
+        <td><code>GET</code></td>
+        <td class="url"><a href="https://ezlab.im/ko/tool/ezfinder?_rsc=j5t6Ei1OzF-EpOxR" target="_blank" rel="noopener" title="https://ezlab.im/ko/tool/ezfinder?_rsc=j5t6Ei1OzF-EpOxR">https://ezlab.im/ko/tool/ezfinder?_rsc=j5t6Ei1OzF-EpOxR</a></td>
+        <td class="num ">-</td>
+      </tr>
+      <tr class="">
+        <td><span class="badge ok">200</span></td>
+        <td><span class="badge ok">자사</span></td>
+        <td><code>GET</code></td>
+        <td class="url"><a href="https://ezlab.im/ko/tool/ezcam?_rsc=j5t6Ei1OzF-EpOxR" target="_blank" rel="noopener" title="https://ezlab.im/ko/tool/ezcam?_rsc=j5t6Ei1OzF-EpOxR">https://ezlab.im/ko/tool/ezcam?_rsc=j5t6Ei1OzF-EpOxR</a></td>
+        <td class="num ">-</td>
+      </tr>
+      <tr class="">
+        <td><span class="badge ok">200</span></td>
+        <td><span class="badge ok">자사</span></td>
+        <td><code>GET</code></td>
+        <td class="url"><a href="https://ezlab.im/ko/tool/ezmanager?_rsc=j5t6Ei1OzF-EpOxR" target="_blank" rel="noopener" title="https://ezlab.im/ko/tool/ezmanager?_rsc=j5t6Ei1OzF-EpOxR">https://ezlab.im/ko/tool/ezmanager?_rsc=j5t6Ei1OzF-EpOxR</a></td>
+        <td class="num ">-</td>
+      </tr>
+      <tr class="">
+        <td><span class="badge ok">200</span></td>
+        <td><span class="badge ok">자사</span></td>
+        <td><code>GET</code></td>
+        <td class="url"><a href="https://ezlab.im/ko/tool/ezdown?_rsc=j5t6Ei1OzF-EpOxR" target="_blank" rel="noopener" title="https://ezlab.im/ko/tool/ezdown?_rsc=j5t6Ei1OzF-EpOxR">https://ezlab.im/ko/tool/ezdown?_rsc=j5t6Ei1OzF-EpOxR</a></td>
+        <td class="num ">-</td>
+      </tr><tr><td colspan="5" class="more">… 정상 API 1480건 더 있음 (전체는 JSON 참조)</td></tr></tbody></table></div>
+  </details>
+
+  <footer>web-healthcheck · Playwright 자동 생성 · 2026-10-28 05:29:27 KST</footer>
+</div>
+
+<textarea id="shareSrc" style="position:absolute;left:-9999px;top:-9999px" readonly>[웹 헬스체크] ❌ 이상 5건 — https://ezlab.im
+실행: 2026-10-28 05:25:38 KST · runId 20261028_052538
+sha: 60a8367
+CI: https://github.com/macpark85/web-helthcheck/actions/runs/40577852126
+
+1. [문제·신규·1회 100%] 링크(외부) (429) HTTP 429
+   https://www.instagram.com/ezlab_official/
+   - 발견 위치: https://ezlab.im/ko/event/branding
+2. [문제·신규·1회 100%] 링크(외부) (ERR) fetch failed
+   https://privacy.kisa.or.kr/
+   - 발견 위치: https://ezlab.im/ko/term/38
+3. [문제·신규·1회 100%] 링크(외부) (404) HTTP 404
+   https://ecrm.police.go.kr/
+   - 발견 위치: https://ezlab.im/ko/term/38
+4. [문제·신규·1회 100%] 이미지 (404) HTTP 404
+   https://act.ds.kakao.com/match?d=111&amp;uid=26685637.1793132743304
+   - 발견 위치: https://ezlab.im/ko
+5. [문제·신규·1회 100%] 이미지 (ERR) fetch failed
+   https://dable-api.scupio.com/dable/v1/exc/?did=26685637.1793132743304
+   - 발견 위치: https://ezlab.im/ko</textarea>
+<script>
+  (function () {
+    var btn = document.getElementById("copyBtn");
+    if (!btn) return;
+    var src = document.getElementById("shareSrc");
+    btn.addEventListener("click", function () {
+      var text = src.value;
+      function done() {
+        var old = btn.textContent;
+        btn.textContent = "✅ 복사됨";
+        btn.classList.add("copied");
+        setTimeout(function () { btn.textContent = old; btn.classList.remove("copied"); }, 1800);
+      }
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(done, function () { fallback(); });
+      } else { fallback(); }
+      function fallback() {
+        src.style.left = "0"; src.focus(); src.select();
+        try { document.execCommand("copy"); done(); } catch (e) {}
+        src.style.left = "-9999px";
+      }
+    });
+  })();
+</script>
+</body>
+</html>
